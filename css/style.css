@@ -1,0 +1,654 @@
+/* RESET */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Segoe UI',sans-serif;
+}
+
+:root{
+
+    --bg-main:#0f172a;
+    --bg-card:#1e293b;
+    --bg-soft:#334155;
+
+    --border:#334155;
+
+    --text:#f8fafc;
+    --text-muted:#94a3b8;
+
+    --green:#10b981;
+    --red:#f43f5e;
+    --blue:#3b82f6;
+    --purple:#8b5cf6;
+
+}
+
+body{
+
+    background:var(--bg-main);
+
+    color:var(--text);
+
+}
+
+
+/* LAYOUT */
+
+.dashboard-container{
+
+    display:flex;
+
+    min-height:100vh;
+
+}
+
+
+/* SIDEBAR */
+
+.sidebar{
+
+    width:270px;
+
+    background:#111827;
+
+    border-right:1px solid var(--border);
+
+    padding:30px 20px;
+
+}
+
+.logo-area{
+
+    margin-bottom:50px;
+
+}
+
+.logo-area h2{
+
+    font-size:28px;
+
+}
+
+.logo-area span{
+
+    color:var(--blue);
+
+}
+
+.logo-area p{
+
+    color:var(--text-muted);
+
+    margin-top:8px;
+
+}
+
+
+.menu ul{
+
+    list-style:none;
+
+}
+
+.menu li{
+
+    margin-bottom:12px;
+
+}
+
+.menu a{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:14px;
+
+    text-decoration:none;
+
+    color:var(--text-muted);
+
+    padding:14px;
+
+    border-radius:12px;
+
+    transition:.3s;
+
+}
+
+.menu a:hover{
+
+    background:var(--bg-soft);
+
+    color:white;
+
+}
+
+.menu .active a{
+
+    background:var(--blue);
+
+    color:white;
+
+}
+
+
+
+/* MAIN */
+
+.main-content{
+
+    flex:1;
+
+    padding:35px;
+
+}
+
+
+
+/* HEADER */
+
+.top-header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:35px;
+
+}
+
+.top-header h1{
+
+    font-size:30px;
+
+}
+
+.top-header p{
+
+    color:var(--text-muted);
+
+    margin-top:8px;
+
+}
+
+
+.user-box{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    background:var(--bg-card);
+
+    border:1px solid var(--border);
+
+    padding:12px 18px;
+
+    border-radius:14px;
+
+}
+
+.user-box i{
+
+    color:var(--blue);
+
+}
+
+
+
+/* KPI GRID */
+
+.kpi-grid{
+
+    display:grid;
+
+    grid-template-columns:
+    repeat(auto-fit,minmax(220px,1fr));
+
+    gap:24px;
+
+    margin-bottom:35px;
+
+}
+
+.kpi-card{
+
+    background:var(--bg-card);
+
+    border:1px solid var(--border);
+
+    border-radius:18px;
+
+    padding:24px;
+
+    transition:.3s;
+
+}
+
+.kpi-card:hover{
+
+    transform:translateY(-4px);
+
+}
+
+.kpi-card span{
+
+    color:var(--text-muted);
+
+    font-size:14px;
+
+}
+
+.kpi-card h2{
+
+    font-size:32px;
+
+    margin:14px 0;
+
+}
+
+.kpi-card small{
+
+    color:var(--text-muted);
+
+}
+
+
+.positive h2{
+
+    color:var(--green);
+
+}
+
+.negative h2{
+
+    color:var(--red);
+
+}
+
+.blue h2{
+
+    color:var(--blue);
+
+}
+
+.purple h2{
+
+    color:var(--purple);
+
+}
+
+
+
+/* CONTENT GRID */
+
+.content-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr 2fr;
+
+    gap:28px;
+
+}
+
+
+
+/* PANEL */
+
+.panel{
+
+    background:var(--bg-card);
+
+    border:1px solid var(--border);
+
+    border-radius:20px;
+
+    padding:25px;
+
+    margin-bottom:28px;
+
+}
+
+.panel-header{
+
+    margin-bottom:25px;
+
+}
+
+.panel-header h3{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:12px;
+
+}
+
+
+
+/* UPLOAD */
+
+.upload-box{
+
+    border:2px dashed var(--border);
+
+    border-radius:18px;
+
+    padding:45px 20px;
+
+    text-align:center;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+}
+
+.upload-box:hover{
+
+    border-color:var(--blue);
+
+    background:#172033;
+
+}
+
+.upload-box i{
+
+    font-size:42px;
+
+    color:var(--blue);
+
+    margin-bottom:20px;
+
+}
+
+.upload-box p{
+
+    color:var(--text-muted);
+
+    margin-bottom:20px;
+
+}
+
+.upload-box input{
+
+    color:white;
+
+}
+
+
+
+/* FORM */
+
+.form-group{
+
+    margin-bottom:20px;
+
+}
+
+.form-group label{
+
+    display:block;
+
+    margin-bottom:8px;
+
+    color:var(--text-muted);
+
+}
+
+input,
+select{
+
+    width:100%;
+
+    background:var(--bg-main);
+
+    color:white;
+
+    border:1px solid var(--border);
+
+    border-radius:12px;
+
+    padding:14px;
+
+    outline:none;
+
+}
+
+input:focus,
+select:focus{
+
+    border-color:var(--blue);
+
+}
+
+
+button{
+
+    width:100%;
+
+    padding:16px;
+
+    border:none;
+
+    border-radius:14px;
+
+    background:var(--blue);
+
+    color:white;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+}
+
+button:hover{
+
+    background:#2563eb;
+
+}
+
+
+
+/* TABLE */
+
+.table-container{
+
+    overflow:auto;
+
+}
+
+table{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+}
+
+thead{
+
+    background:var(--bg-soft);
+
+}
+
+th{
+
+    color:var(--text-muted);
+
+    font-weight:600;
+
+}
+
+th,
+td{
+
+    padding:18px;
+
+    text-align:left;
+
+}
+
+tbody tr{
+
+    border-bottom:1px solid var(--border);
+
+}
+
+tbody tr:hover{
+
+    background:#263246;
+
+}
+
+
+
+/* ACTIVITY */
+
+#activityLog{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:15px;
+
+}
+
+#activityLog p{
+
+    background:var(--bg-main);
+
+    padding:14px;
+
+    border-radius:12px;
+
+    color:var(--text-muted);
+
+}
+
+
+
+/* FOOTER */
+
+.footer{
+
+    margin-top:35px;
+
+    padding-top:25px;
+
+    border-top:1px solid var(--border);
+
+    text-align:center;
+
+    color:var(--text-muted);
+
+}
+
+
+
+/* RESPONSIVO */
+
+@media(max-width:1200px){
+
+.content-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+}
+
+@media(max-width:900px){
+
+.sidebar{
+
+    display:none;
+
+}
+
+.main-content{
+
+    padding:25px;
+
+}
+
+}
+
+@media(max-width:768px){
+
+.top-header{
+
+    flex-direction:column;
+
+    align-items:flex-start;
+
+    gap:20px;
+
+}
+
+.kpi-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+}
+
+.badge{
+
+    display:inline-block;
+
+    font-size:12px;
+
+    font-weight:700;
+
+}
+
+.delete-btn{
+
+    background:#ef4444;
+
+    border:none;
+
+    padding:10px 14px;
+
+    border-radius:10px;
+
+    color:white;
+
+    cursor:pointer;
+
+}
+
+.delete-btn:hover{
+
+    background:#dc2626;
+
+}
+
+.edit-btn{
+
+    background:#f59e0b;
+
+    margin-right:10px;
+
+}
+
+.edit-btn:hover{
+
+    background:#d97706;
+
+}

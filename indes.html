@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Finance AI</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="dashboard-container">
+    <aside class="sidebar">
+        <div class="logo-area">
+            <h2>Smart<span>Finance</span></h2>
+            <p>AI Dashboard</p>
+        </div>
+        <nav class="menu">
+            <ul>
+                <li class="active">
+                    <a href="#"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="user-welcome">
+                <h1>Olá, Utilizador</h1>
+                <p>Aqui está o resumo da sua saúde financeira.</p>
+            </div>
+        </header>
+
+        <section class="kpis">
+            <div class="kpi-card text-green">
+                <h3>Recebimentos</h3>
+                <p id="kpiRecebimentos">R$ 0,00</p>
+            </div>
+            <div class="kpi-card text-red">
+                <h3>Despesas</h3>
+                <p id="kpiDespesas">R$ 0,00</p>
+            </div>
+            <div class="kpi-card text-purple">
+                <h3>Boletos</h3>
+                <p id="kpiBoletos">R$ 0,00</p>
+            </div>
+            <div class="kpi-card text-blue">
+                <h3>Dinheiro que Sobra</h3>
+                <p id="kpiSaldo">R$ 0,00</p>
+            </div>
+        </section>
+
+        <section class="content-grid">
+            <div class="left-column">
+                <section class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-plus"></i> Novo Lançamento</h3>
+                    </div>
+                    <form id="financeForm">
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select id="tipo">
+                                <option value="Recebimento">Recebimento</option>
+                                <option value="Pagamento">Pagamento</option>
+                                <option value="Boleto">Boleto</option>
+                                <option value="Cartão">Cartão</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="group-vencimento" style="display: none;">
+                            <label>Data de Vencimento</label>
+                            <input type="date" id="dataVencimento">
+                        </div>
+                        <div class="form-group">
+                            <label>Descrição</label>
+                            <input type="text" id="descricao" placeholder="Ex: Conta de Água, Salário" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Valor de Entrada (R$)</label>
+                            <input type="number" id="entrada" step="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Valor de Saída (R$)</label>
+                            <input type="number" id="saida" step="0.01" placeholder="0.00">
+                        </div>
+                        <button type="submit" class="btn-submit">Adicionar</button>
+                    </form>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-file-invoice-dollar"></i> Importar via IA</h3>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div style="border: 2px dashed var(--green); padding: 15px; text-align: center; border-radius: 8px; background: rgba(16, 185, 129, 0.05);">
+                            <label for="fileInputRecebimento" style="cursor: pointer;">
+                                <i class="fa-solid fa-arrow-trend-up" style="font-size: 20px; color: var(--green); margin-bottom: 5px;"></i>
+                                <p style="font-size: 12px; font-weight:600;">Recebimentos</p>
+                            </label>
+                            <input type="file" id="fileInputRecebimento" style="display: none;">
+                        </div>
+                        <div style="border: 2px dashed var(--red); padding: 15px; text-align: center; border-radius: 8px; background: rgba(244, 63, 94, 0.05);">
+                            <label for="fileInputPagamento" style="cursor: pointer;">
+                                <i class="fa-solid fa-arrow-trend-down" style="font-size: 20px; color: var(--red); margin-bottom: 5px;"></i>
+                                <p style="font-size: 12px; font-weight:600;">Pagamentos</p>
+                            </label>
+                            <input type="file" id="fileInputPagamento" style="display: none;">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="right-column">
+                <section class="panel grid-charts" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+    <div>
+        <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-muted);"><i class="fa-solid fa-chart-pie"></i> Distribuição por Tipo</h3>
+        <div style="position: relative; height: 220px;">
+            <canvas id="chartCategorias"></canvas>
+        </div>
+    </div>
+    <div>
+        <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-muted);"><i class="fa-solid fa-chart-column"></i> Balanço Mensal</h3>
+        <div style="position: relative; height: 220px;">
+            <canvas id="chartBalanco"></canvas>
+        </div>
+    </div>
+</section>
+                <section class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-list"></i> Extrato Automatizado</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Tipo</th>
+                                    <th>Descrição</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="financeTable"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Atividade Recente</h3>
+                    </div>
+                    <div id="activityLog"></div>
+                </section>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>© 2026 Smart Finance AI</p>
+        </footer>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/script2.js"></script>
+</body>
+</html>
