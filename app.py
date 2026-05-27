@@ -2,9 +2,11 @@ import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from google import genai
+from google.genai import types  # <-- Importação vital para o novo SDK aceitar PDFs/Imagens
 from dotenv import load_dotenv
-import mysql.connector # <-- O nosso conector instalado via pip
+import mysql.connector
 from datetime import datetime
+import json
 
 # Carrega as variáveis do .env
 load_dotenv()
@@ -45,8 +47,10 @@ Aplique as seguintes regras de negócio contextuais:
    - Simplifique o nome do estabelecimento. Remova razões sociais complexas, LTDA, ou dados bancários.
    - Exemplos: Se encontrar 'COMPANHIA DE SANEAMENTO BASICO DO ESTADO DE SAO PAULO', mude para 'Sabesp'. Se encontrar 'Principia Instituição/UniBTA', mude para 'UniBTA'. Se for e-commerce, use 'Amazon', 'Mercado Livre' ou 'Shopee'.
 
-3. EXTRAÇÃO DE VALORES:
-   - Retorne o valor líquido total da operação em formato float puro (Ex: 150.32). Nunca inclua strings como 'R$'.
+3. EXTRAÇÃO DE VALORES (CRÍTICO):
+   - Localize o VALOR TOTAL A PAGAR, VALOR COBRADO ou VALOR LÍQUIDO do documento.
+   - Ignore valores de histórico anterior, consumo de meses passados ou bases de cálculo de impostos.
+   - Retorne o valor líquido total da operação em formato float puro (Ex: 150.32). Nunca inclua strings como 'R$'. Se o valor for 150,00 retorne 150.00.
 
 4. DATA DE VENCIMENTO:
    - Obrigatório para o tipo "Boleto" no formato 'YYYY-MM-DD'. Para os demais tipos ("Pagamento" ou "Recebimento"), retorne estritamente null.
@@ -76,28 +80,27 @@ def processar_comprovante():
         file_bytes = file.read()
         mime_type = file.content_type
         
-        # Envio de bytes corrigido e otimizado para o novo SDK
+        # A estrutura oficial incontestável para carregar binários (PDF/Imagens) no novo SDK
+        arquivo_part = types.Part.from_bytes(
+            data=file_bytes,
+            mime_type=mime_type
+        )
+        
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=[
-                {
-                    "mime_type": mime_type,
-                    "data": file_bytes
-                },
-                PROMPT_IA
-            ]
+            model='gemini-2.5-flash',
+            contents=[arquivo_part, PROMPT_IA]
         )
         
         texto_resposta = response.text.strip()
         if texto_resposta.startswith("```"):
             texto_resposta = texto_resposta.replace("```json", "").replace("```", "").strip()
             
-        # Converte a resposta da IA em um dicionário Python para salvar no Banco
-        import json
         dados = json.loads(texto_resposta)
         
-        # Mapeia valores para as colunas da tabela SQL
-        id_unico = int(datetime.now().timestamp() * 1000) # Simula o Date.now() do JS
+        # 🟢 LINHA DE AUDITORIA (ADICIONE ISSO):
+        print(f"[AUDITORIA IA]: Resposta pura recebida: {dados}")
+        
+        id_unico = int(datetime.now().timestamp() * 1000)
         data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         valor = float(dados.get("valor", 0.0))
         
@@ -105,7 +108,6 @@ def processar_comprovante():
         saida = valor if dados.get("tipo") != "Recebimento" else 0.0
         vencimento = dados.get("data_vencimento")
         
-        # Query de Inserção no MySQL
         conn = obter_conexao_banco()
         cursor = conn.cursor()
         query = """
@@ -129,10 +131,9 @@ def processar_comprovante():
 
 @app.route('/api/lancamentos', methods=['GET'])
 def listar_lancamentos():
-    """Rota para o front-end carregar o histórico vindo direto do banco de dados"""
     try:
         conn = obter_conexao_banco()
-        cursor = conn.cursor(dictionary=True) # Retorna os dados mapeados como dicionários/JSON
+        cursor = conn.cursor(dictionary=True)
         
         cursor.execute("SELECT * FROM lancamentos ORDER BY data_cadastro DESC")
         linhas = cursor.fetchall()
@@ -140,7 +141,6 @@ def listar_lancamentos():
         cursor.close()
         conn.close()
         
-        # Converte formatos de data para string legível no Front-End
         for linha in linhas:
             linha['data'] = linha['data_cadastro'].isoformat()
             if linha['data_vencimento']:
@@ -151,6 +151,35 @@ def listar_lancamentos():
         return jsonify(linhas), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+    
+@app.route('/api/lancamentos/<int:id>', methods=['DELETE', 'OPTIONS'])  # <-- Adicionado OPTIONS aqui
+def deletar_lancamento(id):
+    # Trata a requisição de segurança do navegador (Preflight)
+    if request.method == 'OPTIONS':
+        return jsonify({"success": True}), 200
+        
+    try:
+        conn = obter_conexao_banco()
+        cursor = conn.cursor()
+        
+        # Executa a query de deleção baseada no ID único
+        query = "DELETE FROM lancamentos WHERE id = %s"
+        cursor.execute(query, (id,))
+        conn.commit()
+        
+        linhas_afetadas = cursor.rowcount
+        cursor.close()
+        conn.close()
+        
+        if linhas_afetadas > 0:
+            print(f"[NOC SUCESSO]: Lançamento {id} deletado do MySQL com sucesso!")
+            return jsonify({"success": True, "message": "Registro excluído com sucesso"}), 200
+        else:
+            return jsonify({"error": "Registro não encontrado no banco de dados"}), 404
+            
+    except Exception as e:
+        print(f"[NOC ERROR]: Falha ao deletar registro {id}: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

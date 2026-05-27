@@ -1,226 +1,92 @@
 /* ============================
-STATE MANAGEMENT
+STATE MANAGEMENT (Foco no MySQL)
 ============================ */
-let registros = JSON.parse(localStorage.getItem("smartFinance")) || [];
+let registros = [];
 let chartCategoriasInstance = null;
 let chartBalancoInstance = null;
-/* ============================
-DOM
-============================ */
+
+/* ELEMENTOS DO DOM */
 const form = document.getElementById("financeForm");
 const tabela = document.getElementById("financeTable");
 const activityLog = document.getElementById("activityLog");
 const fileInputRecebimento = document.getElementById("fileInputRecebimento");
 const fileInputPagamento = document.getElementById("fileInputPagamento");
 
-/* KPI */
+/* BOTOES KPI */
 const kpiRecebimentos = document.getElementById("kpiRecebimentos");
 const kpiDespesas = document.getElementById("kpiDespesas");
 const kpiBoletos = document.getElementById("kpiBoletos");
 const kpiSaldo = document.getElementById("kpiSaldo");
 
 /* ============================
-BOOT / INITIALIZATION
+API: BUSCAR DADOS DO BACK-END
 ============================ */
-try {
-    renderTabela();
-    renderKPIs();
-    renderActivity();
-    renderGraficos();
-} catch (e) {
-    console.error("Erro ao inicializar dados. Resetando cache...", e);
-    localStorage.removeItem("smartFinance");
-}
-
-/* ============================
-FORM SUBMIT (MANUAL)
-============================ */
-if (form) {
-    form.addEventListener("submit", function(e){
-        e.preventDefault();
-        adicionarRegistro();
-    });
-}
-
-/* ============================
-UPLOAD REAL E INTEGRAÇÃO COM API
-============================ */
-if (fileInputRecebimento) {
-    fileInputRecebimento.addEventListener("change", function() {
-        if (!this.files.length) return;
-        processarDocumentoReal(this.files[0], true); // true = Canal de Entrada
-        this.value = ""; 
-    });
-}
-
-if (fileInputPagamento) {
-    fileInputPagamento.addEventListener("change", function() {
-        if (!this.files.length) return;
-        processarDocumentoReal(this.files[0], false); // false = Canal de Saída
-        this.value = ""; 
-    });
-}
-
-async function processarDocumentoReal(file, isEntrada) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    console.log(`[NOC ALERT]: Enviando arquivo ${file.name} para a API de Inteligência Artificial...`);
-
+async function carregarDadosDoServidor() {
     try {
-        const resposta = await fetch('http://localhost:5000/api/upload', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!resposta.ok) throw new Error("API retornou status de falha.");
-
-        const dadosIA = await resposta.json();
-        console.log("[NOC SUCESSO]: Dados recebidos da IA:", dadosIA);
-
-        // Extrai o valor retornado e garante que seja tratado como número válido
-        const valorExtraido = Number(dadosIA.valor) || 0;
-
-        // Determina o tipo real. Se a IA detectou que é um Boleto (ex: Sabesp), mantém Boleto.
-        // Se não, assume o canal baseado no botão clicado (Recebimento ou Pagamento)
-        let tipoDefinitivo = dadosIA.tipo;
-        if (!tipoDefinitivo || tipoDefinitivo === "Pagamento" && isEntrada) {
-            tipoDefinitivo = isEntrada ? "Recebimento" : "Pagamento";
-        }
-
-        const novoRegistro = {
-            id: Date.now(),
-            data: new Date().toISOString(),
-            tipo: tipoDefinitivo,
-            descricao: dadosIA.descricao || `Processado: ${file.name}`,
-            entrada: tipoDefinitivo === "Recebimento" ? valorExtraido : 0,
-            saida: tipoDefinitivo !== "Recebimento" ? valorExtraido : 0,
-            dataVencimento: dadosIA.data_vencimento || null
-        };
-
-        registros.push(novoRegistro);
-        salvar();
+        const response = await fetch('http://127.0.0.1:5000/api/lancamentos');
+        if (!response.ok) throw new Error("Erro na requisição com o servidor Flask");
+        
+        registros = await response.json();
+        
+        // Dispara a atualização visual completa da tela
         renderTabela();
         renderKPIs();
-        renderActivity();
         renderGraficos();
-
-    } catch (erro) {
-        console.error("[CRITICAL ERROR]: Falha de comunicação com a API", erro);
-        alert("Ocorreu um erro ao processar o comprovante usando a inteligência artificial. Verifique se o servidor Python está ativo.");
+        renderActivity();
+    } catch (error) {
+        console.error("[NOC ERROR] Falha ao carregar dados do MySQL:", error);
     }
 }
 
 /* ============================
-ADICIONAR REGISTRO MANUAL
-============================ */
-function adicionarRegistro(){
-    const tipo = document.getElementById("tipo").value;
-    const descricao = document.getElementById("descricao").value;
-    const entrada = Number(document.getElementById("entrada").value) || 0;
-    const saida = Number(document.getElementById("saida").value) || 0;
-    const dataVencimento = document.getElementById("dataVencimento") ? document.getElementById("dataVencimento").value : null;
-
-    if(!descricao){
-        alert("Por favor, preencha a descrição.");
-        return;
-    }
-
-    const registro = {
-        id: Date.now(),
-        data: new Date().toISOString(),
-        tipo,
-        descricao,
-        entrada,
-        saida,
-        dataVencimento: tipo === "Boleto" ? dataVencimento : null
-    };
-
-    registros.push(registro);
-    salvar();
-    renderTabela();
-    renderKPIs();
-    renderActivity();
-    if (form) form.reset();
-    
-    const groupVencimento = document.getElementById("group-vencimento");
-    if (groupVencimento) groupVencimento.style.display = "none";
-}
-
-/* ============================
-RENDER LAYOUTS
+RENDER TABELA
 ============================ */
 function renderTabela() {
     if (!tabela) return;
     tabela.innerHTML = "";
 
     if (!registros || registros.length === 0) {
-        tabela.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Nenhum lançamento encontrado.</td></tr>`;
+        tabela.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Nenhum lançamento encontrado.</td></tr>`;
         return;
     }
 
-    [...registros]
-        .sort((a, b) => new Date(b.data) - new Date(a.data))
-        .forEach(registro => {
-            const entrada = Number(registro.entrada) || 0;
-            const saida = Number(registro.saida) || 0;
-            let valorExibido = entrada > 0 ? formatarMoeda(entrada) : "- " + formatarMoeda(saida);
+    registros.forEach(r => {
+        const tr = document.createElement("tr");
 
-            let statusTexto = "Efetivado";
-            if (registro.tipo === "Boleto") {
-                if (registro.dataVencimento) {
-                    const hoje = new Date();
-                    hoje.setHours(0,0,0,0);
-                    const venc = new Date(registro.dataVencimento + "T00:00:00");
-                    statusTexto = venc < hoje ? "⚠️ Vencido" : "⏳ A Vencer";
-                } else {
-                    statusTexto = "⏳ Pendente";
-                }
-            }
+        // Captura o valor correto baseado nas colunas do MySQL
+        const valorReal = Number(r.entrada) > 0 ? Number(r.entrada) : Number(r.saida);
+        const valorFormatado = valorReal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        
+        // Formata a data vinda do banco
+        const dataFormatada = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '---';
 
-            let corStatus = "var(--text-muted)";
-            if (statusTexto.includes("Vencido")) corStatus = "var(--red)";
-            else if (statusTexto.includes("A Vencer")) corStatus = "var(--purple)";
-            else if (registro.tipo === "Recebimento") corStatus = "var(--green)";
+        let badgeClass = "badge-pagamento";
+        if (r.tipo === "Recebimento") badgeClass = "badge-recebimento";
+        if (r.tipo === "Boleto") badgeClass = "badge-boleto";
 
-            tabela.innerHTML += `
-            <tr>
-                <td>${formatarData(registro.data)}</td>
-                <td>${badge(registro.tipo)}</td>
-                <td>
-                    <strong>${registro.descricao}</strong>
-                    ${registro.dataVencimento ? `<br><small style="color:var(--text-muted); font-size:11px;">Vence em: ${formatarData(registro.dataVencimento)}</small>` : ''}
-                </td>
-                <td style="font-weight: 600; color: ${entrada > 0 ? 'var(--green)' : 'var(--text)'}">
-                    ${valorExibido}
-                </td>
-                <td style="font-weight: 600; color: ${corStatus}; font-size: 13px;">
-                    ${statusTexto}
-                </td>
-                <td>
-                    <button onclick="editar(${registro.id})" class="edit-btn" style="margin-right:8px; background:none; border:none; color:var(--blue); cursor:pointer; font-weight:600;">Editar</button>
-                    <button onclick="deletar(${registro.id})" class="delete-btn" style="background:none; border:none; color:var(--red); cursor:pointer; font-weight:600;">Excluir</button>
-                </td>
-            </tr>
-            `;
-        });
+        tr.innerHTML = `
+            <td>${dataFormatada}</td>
+            <td><span class="badge ${badgeClass}">${r.tipo}</span></td>
+            <td><strong>${r.descricao || 'Sem descrição'}</strong></td>
+            <td>${valorFormatado}</td>
+            <td><span class="status-pago"><i class="fa-solid fa-circle-check"></i> Processado</span></td>
+            <td>
+                <button class="btn-action btn-delete" onclick="deletarRegistro(${r.id})" title="Excluir">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tabela.appendChild(tr);
+    });
 }
 
-function badge(tipo){
-    const cores = {
-        Recebimento: "var(--green)",
-        Pagamento: "var(--red)",
-        Boleto: "var(--purple)",
-        Cartão: "var(--blue)"
-    };
-    const cor = cores[tipo] || "var(--bg-soft)";
-    return `<span class="badge" style="background:${cor}; padding:4px 10px; border-radius:6px; color:white; font-size:11px; font-weight:700; text-transform:uppercase;">${tipo}</span>`;
-}
-
-function renderKPIs(){
+/* ============================
+RENDER KPIs
+============================ */
+function renderKPIs() {
     let recebimentos = 0;
-    let despesasRealizadas = 0; 
-    let boletosTotal = 0;       
+    let despesas = 0;
+    let boletos = 0;
 
     registros.forEach(r => {
         const ent = Number(r.entrada) || 0;
@@ -229,111 +95,27 @@ function renderKPIs(){
         if (r.tipo === "Recebimento") {
             recebimentos += ent;
         } else if (r.tipo === "Boleto") {
-            boletosTotal += sai;
+            boletos += sai;
+            despesas += sai;
         } else {
-            despesasRealizadas += sai;
+            despesas += sai;
         }
     });
 
-    const saldoAtualEmConta = recebimentos - despesasRealizadas;
-    const sobraLiquidaReal = saldoAtualEmConta - boletosTotal;
+    const saldo = recebimentos - despesas;
 
-    if(kpiRecebimentos) kpiRecebimentos.textContent = formatarMoeda(recebimentos);
-    if(kpiDespesas) kpiDespesas.textContent = formatarMoeda(despesasRealizadas);
-    if(kpiBoletos) kpiBoletos.textContent = formatarMoeda(boletosTotal);
-    if(kpiSaldo) {
-        kpiSaldo.textContent = formatarMoeda(sobraLiquidaReal);
-        kpiSaldo.parentElement.style.borderLeft = sobraLiquidaReal < 0 ? "5px solid var(--red)" : "5px solid var(--purple)";
-    }
-}
-
-function renderActivity(){
-    if (!activityLog) return;
-    activityLog.innerHTML = "";
-
-    if (registros.length === 0) {
-        activityLog.innerHTML = "<p>Nenhuma atividade recente detectada.</p>";
-        return;
-    }
-
-    [...registros]
-        .slice(-4)
-        .reverse()
-        .forEach(item => {
-            const ent = Number(item.entrada) || 0;
-            const sai = Number(item.saida) || 0;
-            const valor = ent > 0 ? formatarMoeda(ent) : "- " + formatarMoeda(sai);
-
-            activityLog.innerHTML += `
-            <p style="font-size: 13px; margin-bottom: 5px; border-left: 3px solid ${ent > 0 ? 'var(--green)':'var(--red)'}; padding-left: 8px;">
-                <strong>${formatarData(item.data)}</strong> • ${item.tipo} • <span>${item.descricao}</span> • <strong>${valor}</strong>
-            </p>
-            `;
-        });
-}
-
-function deletar(id){
-    registros = registros.filter(item => item.id !== id);
-    salvar();
-    renderTabela();
-    renderKPIs();
-    renderActivity();
-}
-
-function editar(id){
-    const registro = registros.find(item => item.id === id);
-    if(!registro) return;
-
-    document.getElementById("tipo").value = registro.tipo;
-    document.getElementById("descricao").value = registro.descricao;
-    document.getElementById("entrada").value = registro.entrada || "";
-    document.getElementById("saida").value = registro.saida || "";
+    if (kpiRecebimentos) kpiRecebimentos.innerText = recebimentos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (kpiDespesas) kpiDespesas.innerText = despesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (kpiBoletos) kpiBoletos.innerText = boletos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     
-    const groupVencimento = document.getElementById("group-vencimento");
-    if (groupVencimento) {
-        groupVencimento.style.display = registro.tipo === "Boleto" ? "block" : "none";
-        if(registro.tipo === "Boleto") {
-            document.getElementById("dataVencimento").value = registro.dataVencimento || "";
-        }
+    if (kpiSaldo) {
+        kpiSaldo.innerText = saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        kpiSaldo.className = saldo >= 0 ? "text-green" : "text-red";
     }
-    deletar(id);
-}
-
-function salvar(){
-    localStorage.setItem("smartFinance", JSON.stringify(registros));
-}
-
-function formatarMoeda(valor) {
-    if (valor === undefined || valor === null || isNaN(valor)) valor = 0;
-    return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatarData(dataString) {
-    if (!dataString) return "--/--/----";
-    const d = new Date(dataString);
-    if (isNaN(d.getTime())) {
-        const partes = dataString.split('-');
-        if(partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
-        return "--/--/----";
-    }
-    const dia = String(d.getDate()).padStart(2, '0');
-    const mes = String(d.getMonth() + 1).padStart(2, '0');
-    const ano = d.getFullYear();
-    return `${dia}/${mes}/${ano}`;
-}
-
-const tipoSelect = document.getElementById("tipo");
-if (tipoSelect) {
-    tipoSelect.addEventListener("change", function() {
-        const groupVencimento = document.getElementById("group-vencimento");
-        if (groupVencimento) {
-            groupVencimento.style.display = this.value === "Boleto" ? "block" : "none";
-        }
-    });
 }
 
 /* ============================
-RENDER CHARTS (Engine Visual)
+RENDER GRÁFICOS (Engine Visual)
 ============================ */
 function renderGraficos() {
     const ctxCategorias = document.getElementById('chartCategorias');
@@ -341,33 +123,27 @@ function renderGraficos() {
     
     if (!ctxCategorias || !ctxBalanco) return;
 
-    // 1. Inicialização correta de todas as variáveis de soma
     let recebimentos = 0;
     let totalPagamentos = 0;
     let totalBoletos = 0;
     let totalCartao = 0;
 
-    // Garante que o array existe antes de rodar o loop
-    if (registros && registros.length > 0) {
-        registros.forEach(r => {
-            const ent = Number(r.entrada) || 0;
-            const sai = Number(r.saida) || 0;
+    registros.forEach(r => {
+        const ent = Number(r.entrada) || 0;
+        const sai = Number(r.saida) || 0;
 
-            if (r.tipo === "Recebimento") {
-                recebimentos += ent;
-            } else if (r.tipo === "Boleto") {
-                totalBoletos += sai;
-            } else if (r.tipo === "Pagamento") {
-                totalPagamentos += sai;
-            } else if (r.tipo === "Cartão") {
-                totalCartao += sai;
-            }
-        });
-    }
+        if (r.tipo === "Recebimento") {
+            recebimentos += ent;
+        } else if (r.tipo === "Boleto") {
+            totalBoletos += sai;
+        } else if (r.tipo === "Pagamento") {
+            totalPagamentos += sai;
+        } else if (r.tipo === "Cartão") {
+            totalCartao += sai;
+        }
+    });
 
-    // --- GRÁFICO 1: DISTRIBUIÇÃO POR TIPO (Doughnut) ---
     if (chartCategoriasInstance) chartCategoriasInstance.destroy();
-    
     chartCategoriasInstance = new Chart(ctxCategorias, {
         type: 'doughnut',
         data: {
@@ -378,23 +154,11 @@ function renderGraficos() {
                 borderWidth: 0
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { 
-                    position: 'right', 
-                    labels: { color: '#94a3b8', font: { size: 11 } } 
-                }
-            }
-        }
+        options: { responsive: true, maintainAspectRatio: false }
     });
 
-    // --- GRÁFICO 2: BALANÇO MENSAL (Bar) ---
     if (chartBalancoInstance) chartBalancoInstance.destroy();
-    
     const despesasTotais = totalPagamentos + totalBoletos + totalCartao;
-
     chartBalancoInstance = new Chart(ctxBalanco, {
         type: 'bar',
         data: {
@@ -406,14 +170,90 @@ function renderGraficos() {
                 borderRadius: 6
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
-                y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
-            }
-        }
+        options: { responsive: true, maintainAspectRatio: false }
     });
 }
+
+/* ============================
+RENDER ACTIVITY LOG
+============================ */
+function renderActivity() {
+    if (!activityLog) return;
+    activityLog.innerHTML = "";
+    
+    const ultimos = registros.slice(0, 3);
+    ultimos.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "activity-item";
+        const v = Number(r.entrada) > 0 ? r.entrada : r.saida;
+        div.innerHTML = `
+            <p><i class="fa-solid fa-circle-info text-blue"></i> Módulo OCR processou <strong>${r.descricao}</strong> no valor de R$ ${Number(v).toFixed(2)}</p>
+        `;
+        activityLog.appendChild(div);
+    });
+}
+
+/* ============================
+AÇÃO: EXCLUIR REGISTRO (No MySQL e na Tela)
+============================ */
+async function deletarRegistro(id) {
+    if (!confirm("Deseja realmente excluir este lançamento permanentemente do banco de dados?")) return;
+
+    try {
+        // Envia o pedido de DELETE diretamente para a API do Flask
+        const response = await fetch(`http://127.0.0.1:5000/api/lancamentos/${id}`, {
+            method: "DELETE"
+        });
+
+        if (response.ok) {
+            // Se o servidor deletou com sucesso, recarrega a lista atualizada do banco
+            await carregarDadosDoServidor();
+            alert("Lançamento excluído com sucesso do banco de dados!");
+        } else {
+            const erro = await response.json();
+            alert(`Erro ao deletar: ${erro.error || 'Falha no servidor'}`);
+        }
+    } catch (error) {
+        console.error("[NOC ERROR] Falha na comunicação de deleção:", error);
+        alert("Não foi possível conectar ao servidor Python para deletar.");
+    }
+}
+
+/* ============================
+UPLOAD AUTOMATIZADO DE COMPROVANTES
+============================ */
+async function enviarArquivo(file) {
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Exibe indicador visual de processamento
+    if (tabela) tabela.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#3b82f6;"><i class="fa-solid fa-spinner fa-spin"></i> Inteligência artificial do Gemini analisando documento...</td></tr>`;
+
+    try {
+        const response = await fetch("http://127.0.0.1:5000/api/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        if (response.ok) {
+            // Recarrega a lista direto do banco de dados atualizada
+            await carregarDadosDoServidor();
+        } else {
+            alert("Erro ao processar o documento no servidor.");
+            await carregarDadosDoServidor();
+        }
+    } catch (error) {
+        console.error("Erro no upload:", error);
+        alert("Servidor Python offline ou inacessível.");
+        await carregarDadosDoServidor();
+    }
+}
+
+/* LISTENERS DE UPLOAD */
+if (fileInputRecebimento) fileInputRecebimento.addEventListener("change", (e) => enviarArquivo(e.target.files[0]));
+if (fileInputPagamento) fileInputPagamento.addEventListener("change", (e) => enviarArquivo(e.target.files[0]));
+
+// INICIALIZAÇÃO AUTOMÁTICA AO CARREGAR A PÁGINA
+window.addEventListener("DOMContentLoaded", carregarDadosDoServidor);
