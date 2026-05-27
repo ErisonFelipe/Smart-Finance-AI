@@ -53,39 +53,35 @@
 
         <section class="content-grid">
             <div class="left-column">
-                <section class="panel">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-plus"></i> Novo Lançamento</h3>
-                    </div>
-                    <form id="financeForm">
-                        <div class="form-group">
-                            <label>Tipo</label>
-                            <select id="tipo">
-                                <option value="Recebimento">Recebimento</option>
-                                <option value="Pagamento">Pagamento</option>
-                                <option value="Boleto">Boleto</option>
-                                <option value="Cartão">Cartão</option>
-                            </select>
-                        </div>
-                        <div class="form-group" id="group-vencimento" style="display: none;">
-                            <label>Data de Vencimento</label>
-                            <input type="date" id="dataVencimento">
-                        </div>
-                        <div class="form-group">
-                            <label>Descrição</label>
-                            <input type="text" id="descricao" placeholder="Ex: Conta de Água, Salário" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Valor de Entrada (R$)</label>
-                            <input type="number" id="entrada" step="0.01" placeholder="0.00">
-                        </div>
-                        <div class="form-group">
-                            <label>Valor de Saída (R$)</label>
-                            <input type="number" id="saida" step="0.01" placeholder="0.00">
-                        </div>
-                        <button type="submit" class="btn-submit">Adicionar</button>
-                    </form>
-                </section>
+            <section class="panel">
+    <div class="panel-header">
+        <h3><i class="fa-solid fa-plus"></i> Adicionar Lançamento</h3>
+    </div>
+    <form id="financeForm">
+        <div class="form-group">
+            <label for="tipo">Tipo</label>
+            <select id="tipo" name="tipo" required>
+                <option value="Recebimento">Recebimento</option>
+                <option value="Pagamento">Pagamento</option>
+                <option value="Boleto">Boleto</option>
+                <option value="Cartão">Cartão</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="descricao">Descrição</label>
+            <input type="text" id="descricao" name="descricao" placeholder="Ex: Mercado, Luz, Aluguel" required>
+        </div>
+        <div class="form-group">
+            <label for="valor">Valor (R$)</label>
+            <input type="number" id="valor" name="valor" step="0.01" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+            <label for="dataVencimentoForm">Data de Vencimento</label>
+            <input type="date" id="dataVencimentoForm" name="data_vencimento">
+        </div>
+        <button type="submit" class="btn-submit">Salvar Lançamento</button>
+    </form>
+</section>
 
                 <section class="panel">
                     <div class="panel-header">

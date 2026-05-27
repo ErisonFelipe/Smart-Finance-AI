@@ -152,6 +152,50 @@ def listar_lancamentos():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@app.route('/api/lancamentos', methods=['POST', 'OPTIONS'])
+def criar_lancamento_manual():
+    if request.method == 'OPTIONS':
+        return jsonify({"success": True}), 200
+        
+    try:
+        dados = request.json
+        if not dados:
+            return jsonify({"error": "Dados não fornecidos"}), 400
+            
+        # Gera o ID único no mesmo padrão do OCR
+        id_unico = int(datetime.now().timestamp() * 1000)
+        data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        tipo = dados.get("tipo")
+        descricao = dados.get("descricao")
+        valor = float(dados.get("valor", 0.0))
+        vencimento = dados.get("data_vencimento") if dados.get("data_vencimento") else None
+
+        # Separa o valor entre as colunas de Entrada e Saída
+        entrada = valor if tipo == "Recebimento" else 0.0
+        saida = valor if tipo != "Recebimento" else 0.0
+
+        conn = obter_conexao_banco()
+        cursor = conn.cursor()
+        
+        query = """
+            INSERT INTO lancamentos (id, data_cadastro, tipo, descricao, entrada, saida, data_vencimento)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query, (id_unico, data_atual, tipo, descricao, entrada, saida, vencimento))
+        conn.commit()
+        
+        print(f"[NOC SUCESSO]: Lançamento Manual {id_unico} persistido no MySQL!")
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"success": True, "id": id_unico}), 201
+        
+    except Exception as e:
+        print(f"[NOC ERROR]: Falha ao salvar lançamento manual: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
 @app.route('/api/lancamentos/<int:id>', methods=['DELETE', 'OPTIONS'])  # <-- Adicionado OPTIONS aqui
 def deletar_lancamento(id):
     # Trata a requisição de segurança do navegador (Preflight)

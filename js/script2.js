@@ -19,6 +19,73 @@ const kpiBoletos = document.getElementById("kpiBoletos");
 const kpiSaldo = document.getElementById("kpiSaldo");
 
 /* ============================
+FORM SUBMIT (MANUAL)
+============================ */
+if (form) {
+    form.addEventListener("submit", function(e){
+        e.preventDefault();
+        adicionarRegistro();
+    });
+}
+
+/* ============================
+AÇÃO: ADICIONAR REGISTRO MANUAL (Via Formulário)
+============================ */
+async function adicionarRegistro() {
+    const tipoInput = document.getElementById("tipo");
+    const descricaoInput = document.getElementById("descricao");
+    const valorInput = document.getElementById("valor");
+    const vencimentoInput = document.getElementById("dataVencimentoForm");
+
+    if (!tipoInput || !descricaoInput || !valorInput) {
+        alert("Erro técnico: Elementos do formulário não encontrados no DOM.");
+        return;
+    }
+
+    const tipo = tipoInput.value;
+    const descricao = descricaoInput.value.trim();
+    const valor = parseFloat(valorInput.value);
+    const data_vencimento = vencimentoInput ? vencimentoInput.value : null;
+
+    if (!descricao || isNaN(valor) || valor <= 0) {
+        alert("Por favor, preencha a descrição e um valor válido maior que zero.");
+        return;
+    }
+
+    const payload = {
+        tipo: tipo,
+        descricao: descricao,
+        valor: valor,
+        data_vencimento: data_vencimento
+    };
+
+    try {
+        const response = await fetch('http://127.0.0.1:5000/api/lancamentos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            descricaoInput.value = "";
+            valorInput.value = "";
+            if (vencimentoInput) vencimentoInput.value = "";
+            
+            await carregarDadosDoServidor();
+            alert("Lançamento manual gravado com sucesso!");
+        } else {
+            const erro = await response.json();
+            alert(`Erro ao salvar no banco: ${erro.error}`);
+        }
+    } catch (error) {
+        console.error("[NOC ERROR] Erro ao enviar lançamento manual:", error);
+        alert("Servidor offline. Não foi possível salvar o lançamento.");
+    }
+}
+
+/* ============================
 API: BUSCAR DADOS DO BACK-END
 ============================ */
 async function carregarDadosDoServidor() {
@@ -28,7 +95,7 @@ async function carregarDadosDoServidor() {
         
         registros = await response.json();
         
-        // Dispara a atualização visual completa da tela
+        // Atualiza a interface
         renderTabela();
         renderKPIs();
         renderGraficos();
@@ -53,11 +120,8 @@ function renderTabela() {
     registros.forEach(r => {
         const tr = document.createElement("tr");
 
-        // Captura o valor correto baseado nas colunas do MySQL
         const valorReal = Number(r.entrada) > 0 ? Number(r.entrada) : Number(r.saida);
         const valorFormatado = valorReal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        
-        // Formata a data vinda do banco
         const dataFormatada = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '---';
 
         let badgeClass = "badge-pagamento";
@@ -133,7 +197,7 @@ function renderGraficos() {
         const sai = Number(r.saida) || 0;
 
         if (r.tipo === "Recebimento") {
-            recebimentos += ent;
+            recebimentos += ent; // Corrigido e limpo de declarações duplicadas
         } else if (r.tipo === "Boleto") {
             totalBoletos += sai;
         } else if (r.tipo === "Pagamento") {
@@ -194,19 +258,17 @@ function renderActivity() {
 }
 
 /* ============================
-AÇÃO: EXCLUIR REGISTRO (No MySQL e na Tela)
+AÇÃO: EXCLUIR REGISTRO PERMANENTE
 ============================ */
 async function deletarRegistro(id) {
     if (!confirm("Deseja realmente excluir este lançamento permanentemente do banco de dados?")) return;
 
     try {
-        // Envia o pedido de DELETE diretamente para a API do Flask
         const response = await fetch(`http://127.0.0.1:5000/api/lancamentos/${id}`, {
             method: "DELETE"
         });
 
         if (response.ok) {
-            // Se o servidor deletou com sucesso, recarrega a lista atualizada do banco
             await carregarDadosDoServidor();
             alert("Lançamento excluído com sucesso do banco de dados!");
         } else {
@@ -228,7 +290,6 @@ async function enviarArquivo(file) {
     const formData = new FormData();
     formData.append("file", file);
 
-    // Exibe indicador visual de processamento
     if (tabela) tabela.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#3b82f6;"><i class="fa-solid fa-spinner fa-spin"></i> Inteligência artificial do Gemini analisando documento...</td></tr>`;
 
     try {
@@ -238,7 +299,6 @@ async function enviarArquivo(file) {
         });
 
         if (response.ok) {
-            // Recarrega a lista direto do banco de dados atualizada
             await carregarDadosDoServidor();
         } else {
             alert("Erro ao processar o documento no servidor.");
