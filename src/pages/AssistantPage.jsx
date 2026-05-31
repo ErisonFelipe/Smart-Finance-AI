@@ -1,54 +1,34 @@
 import { useState, useRef, useEffect } from "react";
-import { Bot, SendIcon, UserIcon, SparklesIcon, LightbulbIcon } from "lucide-react";
+import { Bot, SendIcon, UserIcon, SparklesIcon, LightbulbIcon, AlertCircleIcon } from "lucide-react";
+import iaService from "@/api/iaService";
 
 const suggestions = [
-  "Quanto gastei com alimentação esse mês?",
-  "Qual o total de despesas pendentes?",
+  "Qual meu saldo atual?",
+  "Quanto gastei esse mês?",
   "Mostre minhas dívidas ativas",
-  "Quando vence o aluguel?",
-  "Resumo financeiro de junho",
-  "Adicione despesa de 150 reais de farmácia",
+  "Quais boletos estão pendentes?",
+  "Resumo financeiro do mês",
+  "Me dê dicas de economia",
 ];
-
-// Simulação de respostas da IA
-const mockResponses = {
-  "alimentação": "Você gastou **R$ 1.200,50** com alimentação este mês. Isso representa **37%** das suas despesas totais. As principais compras foram no supermercado (R$ 650,30) e restaurantes (R$ 550,20).",
-  "pendentes": "Você tem **3 despesas pendentes** totalizando **R$ 769,90**:\n• Internet - R$ 119,90 (vence 10/06)\n• Gasolina - R$ 200,00 (vence 10/06)\n• Freelance a receber - R$ 2.000,00 (previsto 15/06)",
-  "dívidas": "Você tem **2 dívidas ativas**:\n• Notebook Dell: R$ 4.800,00 (4/12 parcelas pagas)\n• Reforma Cozinha: R$ 8.000,00 (2/10 parcelas pagas)\n\nTotal pendente: R$ 9.200,00",
-  "aluguel": "O aluguel vence no **dia 5 de cada mês**. O valor é de **R$ 1.500,00**. O próximo vencimento é em **5 de julho de 2026**.",
-  "resumo": "📊 **Resumo Financeiro - Junho 2026**\n\n• Receitas: R$ 7.000,00\n• Despesas: R$ 3.249,25\n• Investimentos: R$ 500,00\n• Saldo: R$ 3.250,75\n\n💡 Você economizou 15% mais que no mês anterior!",
-  "farmácia": "✅ Despesa adicionada com sucesso!\n• Descrição: Farmácia\n• Valor: R$ 150,00\n• Categoria: Saúde\n• Data: Hoje\n• Status: Pendente",
-  "default": "Entendi! Com base nos seus dados financeiros, aqui está o que encontrei. Posso ajudar com mais alguma coisa? Use as sugestões abaixo ou digite sua pergunta.",
-};
-
-function getResponse(message) {
-  const lower = message.toLowerCase();
-  if (lower.includes("alimentação") || lower.includes("comida") || lower.includes("mercado")) return mockResponses["alimentação"];
-  if (lower.includes("pendente")) return mockResponses["pendentes"];
-  if (lower.includes("dívida") || lower.includes("divida")) return mockResponses["dívidas"];
-  if (lower.includes("aluguel") || lower.includes("aluguél")) return mockResponses["aluguel"];
-  if (lower.includes("resumo") || lower.includes("junho")) return mockResponses["resumo"];
-  if (lower.includes("farmácia") || lower.includes("farmacia") || lower.includes("150")) return mockResponses["farmácia"];
-  return mockResponses["default"];
-}
 
 export default function AssistantPage() {
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: "Olá! Sou a **FinIA**, sua assistente financeira. Posso ajudar com:\n\n📊 Consultar gastos por categoria\n💰 Ver despesas pendentes\n📅 Lembrar vencimentos\n➕ Adicionar transações\n📈 Mostrar resumos financeiros\n\nComo posso ajudar hoje?",
+      text: "Olá! Sou a **FinIA**, sua assistente financeira com inteligência artificial. 🚀\n\nPosso analisar seus dados em tempo real e ajudar com:\n\n📊 Saldo e resumo do mês\n💰 Análise de gastos\n📋 Dívidas ativas\n📄 Boletos pendentes\n💡 Dicas personalizadas\n\nComo posso ajudar hoje?",
       sender: "ia",
     },
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [useAI, setUseAI] = useState(true); // Toggle IA real vs fallback
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = (text) => {
+  const handleSend = async (text) => {
     const messageText = text || input.trim();
     if (!messageText) return;
 
@@ -62,29 +42,63 @@ export default function AssistantPage() {
     setInput("");
     setIsTyping(true);
 
-    // Simular delay da IA
-    setTimeout(() => {
+    try {
+      let reply;
+
+      if (useAI) {
+        // Chamada real à API
+        const history = messages
+          .filter((m) => m.sender === "user" || m.sender === "ia")
+          .slice(-6)
+          .map((m) => ({
+            role: m.sender === "user" ? "user" : "assistant",
+            content: m.text,
+          }));
+
+        const response = await iaService.chat(messageText, history);
+        reply = response.reply;
+
+        // Se foi fallback, avisa
+        if (response.fallback) {
+          reply += "\n\n⚠️ *Modo offline - usando respostas locais*";
+        }
+      } else {
+        // Fallback local
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        reply = getLocalResponse(messageText);
+      }
+
       const iaMessage = {
         id: Date.now() + 1,
-        text: getResponse(messageText),
+        text: reply,
         sender: "ia",
       };
-      setMessages((prev) => [...prev, iaMessage]);
-      setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
-  };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+      setMessages((prev) => [...prev, iaMessage]);
+    } catch (error) {
+      console.error("Erro no chat:", error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: "❌ Erro ao processar sua mensagem. Verifique se o servidor está rodando e tente novamente.",
+        sender: "ia",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
-  // Função para renderizar texto com markdown simples
+  // Fallback local (quando toggle está desligado)
+  const getLocalResponse = (message) => {
+    const msg = message.toLowerCase();
+    if (msg.includes("saldo")) return "💰 Seu saldo este mês é calculado como: Receitas - Despesas. Consulte o Dashboard para o valor exato!";
+    if (msg.includes("dívida")) return "📋 Consulte a página de Dívidas para ver todas as dívidas ativas e seu progresso.";
+    if (msg.includes("boleto")) return "📄 Acesse Dívidas e Boletos > Boletos para ver todos os boletos pendentes.";
+    return "💡 Posso ajudar com suas finanças! Pergunte sobre saldo, gastos, dívidas ou boletos.";
+  };
+
   const renderMessage = (text) => {
     return text.split("\n").map((line, i) => {
-      // Negrito
       const boldFormatted = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
       return <p key={i} dangerouslySetInnerHTML={{ __html: boldFormatted }} />;
     });
@@ -93,15 +107,28 @@ export default function AssistantPage() {
   return (
     <div className="flex h-[calc(100vh-10rem)] flex-col gap-4">
       {/* Cabeçalho */}
-      <div>
-        <h2 className="text-2xl font-bold">Assistente IA</h2>
-        <p className="text-muted-foreground">Tire dúvidas sobre suas finanças com inteligência artificial</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Assistente IA</h2>
+          <p className="text-muted-foreground">
+            {useAI ? "🤖 IA conectada - respostas personalizadas" : "📴 Modo local - respostas básicas"}
+          </p>
+        </div>
+        <button
+          onClick={() => setUseAI(!useAI)}
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            useAI
+              ? "bg-success/10 text-success border border-success/30"
+              : "bg-muted text-muted-foreground border"
+          }`}
+        >
+          {useAI ? "IA Online" : "Modo Local"}
+        </button>
       </div>
 
       <div className="flex flex-1 gap-6">
         {/* Chat */}
         <div className="flex flex-1 flex-col rounded-lg border bg-card shadow-sm">
-          {/* Área de mensagens */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="flex flex-col gap-4">
               {messages.map((message) => (
@@ -109,7 +136,6 @@ export default function AssistantPage() {
                   key={message.id}
                   className={`flex gap-3 ${message.sender === "user" ? "flex-row-reverse" : ""}`}
                 >
-                  {/* Avatar */}
                   <div
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
                       message.sender === "ia"
@@ -124,7 +150,6 @@ export default function AssistantPage() {
                     )}
                   </div>
 
-                  {/* Balão de mensagem */}
                   <div
                     className={`max-w-[80%] rounded-lg p-3 text-sm ${
                       message.sender === "ia"
@@ -137,7 +162,6 @@ export default function AssistantPage() {
                 </div>
               ))}
 
-              {/* Indicador de digitando */}
               {isTyping && (
                 <div className="flex gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
@@ -155,22 +179,26 @@ export default function AssistantPage() {
             </div>
           </div>
 
-          {/* Input */}
           <div className="border-t p-4">
             <div className="flex gap-2">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Digite sua pergunta..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder={useAI ? "Fale com a FinIA (Gemini)..." : "Modo local ativado..."}
                 className="flex-1 rounded-md border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 disabled={isTyping}
               />
               <button
                 onClick={() => handleSend()}
                 disabled={!input.trim() || isTyping}
-                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
               >
                 <SendIcon className="h-4 w-4" />
                 Enviar
@@ -203,12 +231,15 @@ export default function AssistantPage() {
           <div className="rounded-lg border bg-card p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <SparklesIcon className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">Dica do dia</h3>
+              <h3 className="text-sm font-semibold">Status da IA</h3>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Você pode me pedir para <strong>adicionar transações</strong> diretamente pelo chat! 
-              Exemplo: "Adicione uma despesa de 50 reais de transporte"
-            </p>
+            <div className="text-xs text-muted-foreground space-y-2">
+              <p className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${useAI ? "bg-success" : "bg-muted-foreground"}`} />
+                {useAI ? "Google Gemini Flash" : "Respostas locais"}
+              </p>
+              <p>Modelo mais rápido e econômico, otimizado para respostas concisas.</p>
+            </div>
           </div>
         </div>
       </div>

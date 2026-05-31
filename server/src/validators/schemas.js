@@ -1,54 +1,47 @@
 const { z } = require("zod");
 
 const registerSchema = z.object({
-  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  name: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(6),
   monthlyIncome: z.number().min(0).optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email("Email inválido"),
-  password: z.string().min(1, "Senha é obrigatória"),
+  email: z.string().email(),
+  password: z.string().min(1),
 });
 
 const transactionSchema = z.object({
-  categoryId: z.string().uuid("Categoria inválida"),
+  categoryId: z.string(),
   type: z.enum(["income", "expense", "investment"]),
-  amount: z.number().positive("Valor deve ser positivo"),
-  description: z.string().min(1, "Descrição é obrigatória"),
-  dueDate: z.string().datetime({ message: "Data inválida" }).or(z.date()),
+  amount: z.number().positive(),
+  description: z.string().min(1),
+  dueDate: z.string().or(z.date()),
   recurrence: z.enum(["none", "fixed", "installment"]).optional(),
   installments: z.number().int().min(1).optional(),
   paid: z.boolean().optional(),
 });
 
 const debtSchema = z.object({
-  categoryId: z.string().uuid("Categoria inválida"),
-  name: z.string().min(1, "Nome é obrigatório"),
-  totalAmount: z.number().positive("Valor deve ser positivo"),
-  startDate: z.string().datetime().or(z.date()),
+  categoryId: z.string(),
+  name: z.string().min(1),
+  totalAmount: z.number().positive(),
+  startDate: z.string().or(z.date()),
   installments: z.number().int().min(1),
 });
 
 const boletoSchema = z.object({
   barcode: z.string().optional(),
-  amount: z.number().positive("Valor deve ser positivo"),
-  dueDate: z.string().datetime().or(z.date()),
-  description: z.string().min(1, "Descrição é obrigatória"),
+  amount: z.number().positive(),
+  dueDate: z.string().or(z.date()),
+  description: z.string().min(1),
 });
 
 const categorySchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
+  name: z.string().min(1),
   icon: z.string().optional(),
   type: z.enum(["income", "expense", "investment"]),
 });
 
-module.exports = {
-  registerSchema,
-  loginSchema,
-  transactionSchema,
-  debtSchema,
-  boletoSchema,
-  categorySchema,
-};
+module.exports = { registerSchema, loginSchema, transactionSchema, debtSchema, boletoSchema, categorySchema };
