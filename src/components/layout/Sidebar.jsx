@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   ArrowLeftRight, 
@@ -9,9 +9,11 @@ import {
   Settings,
   MenuIcon,
   XIcon,
-  TrendingUpIcon
+  TrendingUpIcon,
+  LogOutIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/authStore";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -25,6 +27,13 @@ const navigation = [
 export default function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout, user } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <>
@@ -104,17 +113,24 @@ export default function Sidebar() {
           </div>
         </nav>
 
-        {/* Footer */}
+        {/* Footer com usuário e logout */}
         <div className="border-t p-4">
-          <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
+          <div className="flex items-center gap-3 rounded-lg bg-muted p-3 mb-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-success-foreground text-xs font-bold">
-              JS
+              {user?.name?.charAt(0) || "U"}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">João Silva</p>
-              <p className="text-xs text-muted-foreground truncate">Premium</p>
+              <p className="text-sm font-medium truncate">{user?.name || "Usuário"}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          >
+            <LogOutIcon className="h-4 w-4" />
+            Sair
+          </button>
         </div>
       </aside>
     </>
