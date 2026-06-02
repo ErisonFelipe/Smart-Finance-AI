@@ -1,22 +1,31 @@
-import { useState } from "react";
-import { 
-  UserIcon, 
-  BellIcon, 
-  PaletteIcon, 
-  TagIcon, 
-  DownloadIcon, 
+import { useState, useRef, useEffect } from "react";
+import {
+  UserIcon,
+  BellIcon,
+  TagIcon,
+  DownloadIcon,
   SaveIcon,
-  CheckCircleIcon 
+  CheckCircleIcon,
+  CameraIcon,
+  LoaderIcon,
 } from "lucide-react";
+import userService from "@/api/userService";
+import { useAuthStore } from "@/store/authStore";
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState("perfil");
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+  const { user, setUser } = useAuthStore();
+
   const [settings, setSettings] = useState({
-    nome: "João Silva",
-    email: "joao@email.com",
-    rendaMensal: 8000,
-    tema: "claro",
+    nome: user?.name || "",
+    email: user?.email || "",
+    rendaMensal: user?.monthlyIncome || 0,
+    photoUrl: user?.photoUrl || null,
+    photoFile: null,
     notificacoes: {
       vencimentos: true,
       boletos: true,
@@ -34,9 +43,64 @@ export default function SettingsPage() {
     ],
   });
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Verificar tamanho (2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("A imagem deve ter no máximo 2MB");
+        return;
+      }
+
+      setSettings({ ...settings, photoFile: file });
+
+      // Preview local
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+
+      const formData = new FormData();
+      formData.append("name", settings.nome);
+      formData.append("monthlyIncome", settings.rendaMensal);
+      if (settings.photoFile) {
+        formData.append("photo", settings.photoFile);
+      }
+
+      const updatedUser = await userService.updateProfile(formData);
+
+      // Atualizar store e localStorage
+      const currentUser = { ...user, ...updatedUser };
+      localStorage.setItem("user", JSON.stringify(currentUser));
+      setUser(currentUser);
+
+      setSettings({
+        ...settings,
+        nome: updatedUser.name,
+        rendaMensal: updatedUser.monthlyIncome,
+        photoUrl: updatedUser.photoUrl,
+        photoFile: null,
+      });
+      setPreviewUrl(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar perfil. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleCategoria = (index) => {
@@ -52,116 +116,192 @@ export default function SettingsPage() {
     { id: "dados", label: "Dados", icon: DownloadIcon },
   ];
 
+  const getPhotoUrl = () => {
+    if (previewUrl) return previewUrl;
+    if (settings.photoUrl) {
+      return settings.photoUrl.startsWith("http")
+        ? settings.photoUrl
+        : `http://localhost:3001${settings.photoUrl}`;
+    }
+    return null;
+  };
+
+  const photoUrl = getPhotoUrl();
+
   return (
     <div className="flex flex-col gap-6">
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold">Configurações</h2>
           <p className="text-muted-foreground">Personalize sua experiência</p>
         </div>
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          disabled={loading}
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50 transition-colors"
         >
-          {saved ? (
-            <>
-              <CheckCircleIcon className="h-4 w-4" />
-              Salvo!
-            </>
+          {loading ? (
+            <LoaderIcon className="h-4 w-4 animate-spin" />
+          ) : saved ? (
+            <CheckCircleIcon className="h-4 w-4" />
           ) : (
-            <>
-              <SaveIcon className="h-4 w-4" />
-              Salvar Alterações
-            </>
+            <SaveIcon className="h-4 w-4" />
           )}
+          {loading ? "Salvando..." : saved ? "Salvo!" : "Salvar Alterações"}
         </button>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar de seções */}
-        <div className="hidden w-48 flex-col gap-1 sm:flex">
+        <div className="flex lg:flex-col gap-1 overflow-x-auto lg:w-48 lg:shrink-0">
           {sections.map((section) => {
             const Icon = section.icon;
             return (
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
                   activeSection === section.id
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                {section.label}
+                <span className="hidden sm:inline">{section.label}</span>
               </button>
             );
           })}
         </div>
 
         {/* Conteúdo da seção */}
-        <div className="flex-1 rounded-lg border bg-card p-6 shadow-sm">
-          {/* Perfil */}
+        <div className="flex-1 rounded-xl border bg-card p-6 shadow-sm">
+          {/* ========== PERFIL ========== */}
           {activeSection === "perfil" && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6 animate-fade-in">
               <h3 className="text-lg font-semibold">Dados do Perfil</h3>
-              
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                  <UserIcon className="h-8 w-8 text-primary" />
+
+              {/* Foto */}
+              <div className="flex items-center gap-6">
+                <div
+                  className="relative group cursor-pointer flex-shrink-0"
+                  onClick={handlePhotoClick}
+                >
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted overflow-hidden border-2 border-border transition-colors group-hover:border-primary">
+                    {photoUrl ? (
+                      <img
+                        src={photoUrl}
+                        alt="Foto de perfil"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <CameraIcon className="h-6 w-6 text-white" />
+                  </div>
                 </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
                 <div>
-                  <button className="text-sm text-primary hover:underline">
-                    Alterar foto
-                  </button>
+                  <p className="text-sm font-medium">Foto de Perfil</p>
+                  <p className="text-xs text-muted-foreground">
+                    Clique na foto para alterar
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    JPG, PNG ou GIF (máx. 2MB)
+                  </p>
                 </div>
               </div>
 
+              {/* Nome */}
               <div>
                 <label className="mb-1 block text-sm font-medium">Nome</label>
                 <input
                   type="text"
                   value={settings.nome}
-                  onChange={(e) => setSettings({ ...settings, nome: e.target.value })}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  onChange={(e) =>
+                    setSettings({ ...settings, nome: e.target.value })
+                  }
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
+                  placeholder="Seu nome completo"
                 />
               </div>
 
+              {/* Email (readonly) */}
               <div>
                 <label className="mb-1 block text-sm font-medium">Email</label>
                 <input
                   type="email"
                   value={settings.email}
-                  onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  disabled
+                  className="w-full rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  O email não pode ser alterado
+                </p>
               </div>
 
+              {/* Renda Mensal */}
               <div>
-                <label className="mb-1 block text-sm font-medium">Renda Mensal (R$)</label>
+                <label className="mb-1 block text-sm font-medium">
+                  Renda Mensal (R$)
+                </label>
                 <input
                   type="number"
                   value={settings.rendaMensal}
-                  onChange={(e) => setSettings({ ...settings, rendaMensal: Number(e.target.value) })}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      rendaMensal: Number(e.target.value),
+                    })
+                  }
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
+                  placeholder="0,00"
                 />
               </div>
             </div>
           )}
 
-          {/* Notificações */}
+          {/* ========== NOTIFICAÇÕES ========== */}
           {activeSection === "notificacoes" && (
-            <div className="flex flex-col gap-4">
-              <h3 className="text-lg font-semibold">Preferências de Notificação</h3>
-              
+            <div className="flex flex-col gap-4 animate-fade-in">
+              <h3 className="text-lg font-semibold">
+                Preferências de Notificação
+              </h3>
+
               {[
-                { key: "vencimentos", label: "Lembretes de vencimento", desc: "Avise 1 dia antes do vencimento" },
-                { key: "boletos", label: "Boletos pendentes", desc: "Notifique sobre boletos a vencer" },
-                { key: "resumoMensal", label: "Resumo mensal", desc: "Envie um resumo no início de cada mês" },
-                { key: "dicas", label: "Dicas financeiras", desc: "Receba sugestões de economia" },
+                {
+                  key: "vencimentos",
+                  label: "Lembretes de vencimento",
+                  desc: "Avise 1 dia antes do vencimento",
+                },
+                {
+                  key: "boletos",
+                  label: "Boletos pendentes",
+                  desc: "Notifique sobre boletos a vencer",
+                },
+                {
+                  key: "resumoMensal",
+                  label: "Resumo mensal",
+                  desc: "Envie um resumo no início de cada mês",
+                },
+                {
+                  key: "dicas",
+                  label: "Dicas financeiras",
+                  desc: "Receba sugestões de economia",
+                },
               ].map((item) => (
-                <div key={item.key} className="flex items-center justify-between rounded-md border p-3">
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between rounded-lg border p-4"
+                >
                   <div>
                     <p className="text-sm font-medium">{item.label}</p>
                     <p className="text-xs text-muted-foreground">{item.desc}</p>
@@ -188,11 +328,13 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Categorias */}
+          {/* ========== CATEGORIAS ========== */}
           {activeSection === "categorias" && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 animate-fade-in">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Categorias Personalizadas</h3>
+                <h3 className="text-lg font-semibold">
+                  Categorias Personalizadas
+                </h3>
                 <button className="text-sm text-primary hover:underline">
                   + Nova Categoria
                 </button>
@@ -200,13 +342,18 @@ export default function SettingsPage() {
 
               <div className="flex flex-col gap-2">
                 {settings.categorias.map((cat, index) => (
-                  <div key={index} className="flex items-center justify-between rounded-md border p-3">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
                     <div className="flex items-center gap-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
-                        cat.tipo === "renda"
-                          ? "bg-success/10 text-success"
-                          : "bg-destructive/10 text-destructive"
-                      }`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
+                          cat.tipo === "renda"
+                            ? "bg-success/10 text-success"
+                            : "bg-destructive/10 text-destructive"
+                        }`}
+                      >
                         {cat.tipo === "renda" ? "Renda" : "Despesa"}
                       </span>
                       <span className="text-sm font-medium">{cat.nome}</span>
@@ -226,43 +373,50 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Dados */}
+          {/* ========== DADOS ========== */}
           {activeSection === "dados" && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 animate-fade-in">
               <h3 className="text-lg font-semibold">Exportação de Dados</h3>
-              
+
               <div className="flex flex-col gap-3">
-                <button className="flex items-center justify-between rounded-md border p-4 text-left hover:bg-muted">
+                <button className="flex items-center justify-between rounded-lg border p-4 text-left hover:bg-muted transition-colors">
                   <div>
                     <p className="font-medium">Exportar Transações</p>
-                    <p className="text-sm text-muted-foreground">Baixe todas as transações em CSV</p>
+                    <p className="text-sm text-muted-foreground">
+                      Baixe todas as transações em CSV
+                    </p>
                   </div>
                   <DownloadIcon className="h-5 w-5 text-muted-foreground" />
                 </button>
 
-                <button className="flex items-center justify-between rounded-md border p-4 text-left hover:bg-muted">
+                <button className="flex items-center justify-between rounded-lg border p-4 text-left hover:bg-muted transition-colors">
                   <div>
                     <p className="font-medium">Relatório Mensal</p>
-                    <p className="text-sm text-muted-foreground">Relatório detalhado em PDF</p>
+                    <p className="text-sm text-muted-foreground">
+                      Relatório detalhado em PDF
+                    </p>
                   </div>
                   <DownloadIcon className="h-5 w-5 text-muted-foreground" />
                 </button>
 
-                <button className="flex items-center justify-between rounded-md border p-4 text-left hover:bg-muted">
+                <button className="flex items-center justify-between rounded-lg border p-4 text-left hover:bg-muted transition-colors">
                   <div>
                     <p className="font-medium">Backup Completo</p>
-                    <p className="text-sm text-muted-foreground">Todos os dados em formato JSON</p>
+                    <p className="text-sm text-muted-foreground">
+                      Todos os dados em formato JSON
+                    </p>
                   </div>
                   <DownloadIcon className="h-5 w-5 text-muted-foreground" />
                 </button>
               </div>
 
-              <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-4">
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
                 <p className="font-medium text-destructive">Zona de Perigo</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Excluir todos os dados permanentemente
+                  Excluir todos os dados permanentemente. Esta ação não pode ser
+                  desfeita.
                 </p>
-                <button className="mt-3 rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90">
+                <button className="mt-3 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors">
                   Excluir Todos os Dados
                 </button>
               </div>

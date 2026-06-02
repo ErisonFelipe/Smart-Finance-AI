@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import authService from "@/api/authService";
 
-export const useAuthStore = create((set) => ({
+const useAuthStore = create((set) => ({
   user: authService.getCurrentUser(),
   token: localStorage.getItem("token"),
   isAuthenticated: !!localStorage.getItem("token"),
@@ -40,4 +40,11 @@ export const useAuthStore = create((set) => ({
     authService.logout();
     set({ user: null, token: null, isAuthenticated: false });
   },
+
+  setUser: (user) => {
+    localStorage.setItem("user", JSON.stringify(user));
+    set({ user });
+  },
 }));
+
+export { useAuthStore };

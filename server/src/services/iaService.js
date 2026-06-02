@@ -3,70 +3,126 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-// Inicializa o Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+// Inicializa o Gemini com a chave
+function getGeminiModel() {
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.includes("sua-chave")) {
+    return null;
+  }
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  return genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+}
 
-// Função para buscar contexto financeiro do usuário
+// Buscar TODO o contexto financeiro do usuário
 async function getFinancialContext(userId) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-  const [receitas, despesas, investimentos, transacoesRecentes, dividas, boletos] =
-    await Promise.all([
-      prisma.transaction.aggregate({
-        where: { userId, type: "income", dueDate: { gte: startOfMonth, lte: endOfMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { userId, type: "expense", dueDate: { gte: startOfMonth, lte: endOfMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { userId, type: "investment", dueDate: { gte: startOfMonth, lte: endOfMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.findMany({
-        where: { userId },
-        include: { category: true },
-        orderBy: { dueDate: "desc" },
-        take: 10,
-      }),
-      prisma.debt.findMany({
-        where: { userId, status: { in: ["active", "late"] } },
-        include: { category: true, installmentList: { orderBy: { number: "asc" } } },
-      }),
-      prisma.boleto.findMany({
-        where: { userId, paid: false },
-      }),
-    ]);
+  const [
+    receitas, despesas, investimentos,
+    totalReceitas, totalDespesas, totalInvestimentos,
+    transacoesRecentes, todasTransacoesMes,
+    dividasAtivas, boletosPendentes, categorias,
+  ] = await Promise.all([
+    // Receitas do mês
+    prisma.transaction.aggregate({
+      where: { userId, type: "income", dueDate: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    }),
+    // Despesas do mês
+    prisma.transaction.aggregate({
+      where: { userId, type: "expense", dueDate: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    }),
+    // Investimentos do mês
+    prisma.transaction.aggregate({
+      where: { userId, type: "investment", dueDate: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    }),
+    // Total histórico receitas
+    prisma.transaction.aggregate({
+      where: { userId, type: "income" },
+      _sum: { amount: true },
+    }),
+    // Total histórico despesas
+    prisma.transaction.aggregate({
+      where: { userId, type: "expense" },
+      _sum: { amount: true },
+    }),
+    // Total histórico investimentos
+    prisma.transaction.aggregate({
+      where: { userId, type: "investment" },
+      _sum: { amount: true },
+    }),
+    // Últimas 10 transações
+    prisma.transaction.findMany({
+      where: { userId },
+      include: { category: true },
+      orderBy: { dueDate: "desc" },
+      take: 10,
+    }),
+    // Todas as transações do mês (para análise)
+    prisma.transaction.findMany({
+      where: { userId, dueDate: { gte: startOfMonth, lte: endOfMonth } },
+      include: { category: true },
+      orderBy: { dueDate: "desc" },
+    }),
+    // Dívidas ativas
+    prisma.debt.findMany({
+      where: { userId, status: { in: ["active", "late"] } },
+      include: { category: true, installmentList: { orderBy: { number: "asc" } } },
+    }),
+    // Boletos pendentes
+    prisma.boleto.findMany({
+      where: { userId, paid: false },
+      orderBy: { dueDate: "asc" },
+    }),
+    // Categorias
+    prisma.category.findMany({ where: { userId } }),
+  ]);
+
+  const receitasMes = receitas._sum.amount || 0;
+  const despesasMes = despesas._sum.amount || 0;
+  const investimentosMes = investimentos._sum.amount || 0;
+  const saldoMes = receitasMes - despesasMes - investimentosMes;
+  const saldoGeral = (totalReceitas._sum.amount || 0) - (totalDespesas._sum.amount || 0) - (totalInvestimentos._sum.amount || 0);
+
+  // Agrupar despesas por categoria no mês
+  const gastosPorCategoria = {};
+  todasTransacoesMes
+    .filter((t) => t.type === "expense")
+    .forEach((t) => {
+      const nome = t.category?.name || "Outros";
+      gastosPorCategoria[nome] = (gastosPorCategoria[nome] || 0) + t.amount;
+    });
 
   return {
     mesAtual: now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
-    receitasMes: receitas._sum.amount || 0,
-    despesasMes: despesas._sum.amount || 0,
-    investimentosMes: investimentos._sum.amount || 0,
-    saldoMes: (receitas._sum.amount || 0) - (despesas._sum.amount || 0),
+    receitasMes,
+    despesasMes,
+    investimentosMes,
+    saldoMes,
+    saldoGeral,
+    gastosPorCategoria,
     transacoesRecentes: transacoesRecentes.map((t) => ({
       descricao: t.description,
       valor: t.amount,
-      tipo: t.type === "income" ? "receita" : t.type === "expense" ? "despesa" : "investimento",
+      tipo: t.type,
       categoria: t.category?.name || "Sem categoria",
       data: t.dueDate.toLocaleDateString("pt-BR"),
       pago: t.paid,
     })),
-    dividasAtivas: dividas.map((d) => {
+    dividasAtivas: dividasAtivas.map((d) => {
       const paidInstallments = d.installmentList?.filter((i) => i.paid).length || 0;
       return {
         nome: d.name,
         valorTotal: d.totalAmount,
-        valorPago: d.paidAmount,
         valorRestante: d.totalAmount - d.paidAmount,
         parcelas: `${paidInstallments}/${d.installments}`,
-        status: d.status,
+        status: d.status === "late" ? "Atrasada" : "Em dia",
       };
     }),
-    boletosPendentes: boletos.map((b) => ({
+    boletosPendentes: boletosPendentes.map((b) => ({
       descricao: b.description,
       valor: b.amount,
       vencimento: b.dueDate.toLocaleDateString("pt-BR"),
@@ -74,34 +130,59 @@ async function getFinancialContext(userId) {
   };
 }
 
-// Prompt do sistema
+// Construir prompt com dados reais
 function buildSystemPrompt(context) {
-  return `Você é a FinIA, uma assistente financeira inteligente e amigável. 
-Use APENAS os dados abaixo para responder. Não invente informações.
+  const categoriasStr = Object.entries(context.gastosPorCategoria || {})
+    .map(([nome, valor]) => `  • ${nome}: R$ ${valor.toFixed(2)}`)
+    .join("\n");
 
-📊 DADOS FINANCEIROS DO USUÁRIO:
-Mês atual: ${context?.mesAtual || "N/A"}
-Receitas do mês: R$ ${context?.receitasMes?.toFixed(2) || "0.00"}
-Despesas do mês: R$ ${context?.despesasMes?.toFixed(2) || "0.00"}
-Investimentos do mês: R$ ${context?.investimentosMes?.toFixed(2) || "0.00"}
-Saldo do mês: R$ ${context?.saldoMes?.toFixed(2) || "0.00"}
+  const transacoesStr = context.transacoesRecentes
+    .map((t) => `  • ${t.data} - ${t.descricao}: R$ ${t.valor.toFixed(2)} (${t.tipo === "income" ? "Receita" : t.tipo === "expense" ? "Despesa" : "Investimento"}, ${t.categoria}, ${t.pago ? "Pago" : "Pendente"})`)
+    .join("\n");
 
-${context?.transacoesRecentes?.length ? `TRANSAÇÕES RECENTES:\n${context.transacoesRecentes.map(t => `- ${t.descricao}: R$ ${t.valor.toFixed(2)} (${t.tipo}, ${t.categoria}, ${t.pago ? "pago" : "pendente"}, ${t.data})`).join("\n")}` : ""}
+  const dividasStr = context.dividasAtivas.length > 0
+    ? context.dividasAtivas.map((d) => `  • ${d.nome}: Restante R$ ${d.valorRestante.toFixed(2)} (${d.parcelas} parcelas, ${d.status})`).join("\n")
+    : "  Nenhuma dívida ativa";
 
-${context?.dividasAtivas?.length ? `DÍVIDAS ATIVAS:\n${context.dividasAtivas.map(d => `- ${d.nome}: Total R$ ${d.valorTotal.toFixed(2)} | Restante R$ ${d.valorRestante.toFixed(2)} | Parcelas: ${d.parcelas} | Status: ${d.status}`).join("\n")}` : ""}
+  const boletosStr = context.boletosPendentes.length > 0
+    ? context.boletosPendentes.map((b) => `  • ${b.descricao}: R$ ${b.valor.toFixed(2)} (Vence ${b.vencimento})`).join("\n")
+    : "  Nenhum boleto pendente";
 
-${context?.boletosPendentes?.length ? `BOLETOS PENDENTES:\n${context.boletosPendentes.map(b => `- ${b.descricao}: R$ ${b.valor.toFixed(2)} (Vence: ${b.vencimento})`).join("\n")}` : ""}
+  return `Você é a FinIA, uma assistente financeira pessoal inteligente e amigável.
 
-REGRAS:
+📊 DADOS FINANCEIROS REAIS DO USUÁRIO:
+
+Mês atual: ${context.mesAtual}
+Receitas do mês: R$ ${context.receitasMes.toFixed(2)}
+Despesas do mês: R$ ${context.despesasMes.toFixed(2)}
+Investimentos do mês: R$ ${context.investimentosMes.toFixed(2)}
+Saldo do mês: R$ ${context.saldoMes.toFixed(2)}
+Saldo geral acumulado: R$ ${context.saldoGeral.toFixed(2)}
+
+📂 GASTOS POR CATEGORIA (este mês):
+${categoriasStr || "  Nenhum gasto registrado"}
+
+📋 ÚLTIMAS TRANSAÇÕES:
+${transacoesStr || "  Nenhuma transação"}
+
+💰 DÍVIDAS ATIVAS:
+${dividasStr}
+
+📄 BOLETOS PENDENTES:
+${boletosStr}
+
+REGRAS DE RESPOSTA:
 1. Responda SEMPRE em português do Brasil
-2. Use emojis e bullets para organizar
-3. Máximo 250 palavras por resposta
-4. Seja direta e útil
-5. Se perguntarem algo fora dos dados, diga "Não tenho essa informação no momento"
-6. Ofereça dicas financeiras baseadas nos dados reais`;
+2. Use APENAS os dados fornecidos acima — NÃO invente valores
+3. Use emojis e bullets para organizar a informação
+4. Seja direta e útil, máximo 250 palavras
+5. Se perguntarem algo que não está nos dados, diga "Não tenho essa informação no momento"
+6. Ao dar dicas, baseie-se nos gastos reais do usuário
+7. Mostre preocupação genuína com a saúde financeira do usuário
+8. Se detectar gastos excessivos em alguma categoria, alerte com educação`;
 }
 
-// Função principal do chat com Gemini
+// Função principal do chat
 async function chatWithIA(userId, userMessage, conversationHistory = []) {
   let context = null;
 
@@ -109,26 +190,32 @@ async function chatWithIA(userId, userMessage, conversationHistory = []) {
     context = await getFinancialContext(userId);
   } catch (err) {
     console.error("Erro ao buscar contexto:", err);
+    return {
+      reply: "❌ Erro ao acessar seus dados financeiros. Tente novamente.",
+      fallback: true,
+    };
   }
 
-  // Verificar se tem API Key configurada
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.includes("sua-chave")) {
-    console.log("⚠️ Gemini API Key não configurada, usando fallback local");
+  const model = getGeminiModel();
+
+  // Se não tem API Key configurada
+  if (!model) {
+    console.log("⚠️ Gemini não configurado, usando fallback local");
     return {
       reply: getFallbackResponse(userMessage, context),
       context: {
-        receitasMes: context?.receitasMes || 0,
-        despesasMes: context?.despesasMes || 0,
-        saldoMes: context?.saldoMes || 0,
+        receitasMes: context.receitasMes,
+        despesasMes: context.despesasMes,
+        saldoMes: context.saldoMes,
       },
       fallback: true,
     };
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const systemPrompt = buildSystemPrompt(context);
 
-    // Construir histórico da conversa
+    // Construir histórico para o Gemini
     const history = conversationHistory.map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
       parts: [{ text: msg.content }],
@@ -138,16 +225,16 @@ async function chatWithIA(userId, userMessage, conversationHistory = []) {
       history: [
         {
           role: "user",
-          parts: [{ text: "Olá! Quem é você?" }],
+          parts: [{ text: "Quem é você e quais dados você tem sobre mim?" }],
         },
         {
           role: "model",
-          parts: [{ text: buildSystemPrompt(context) }],
+          parts: [{ text: systemPrompt }],
         },
         ...history,
       ],
       generationConfig: {
-        maxOutputTokens: 400,
+        maxOutputTokens: 500,
         temperature: 0.7,
         topP: 0.8,
       },
@@ -159,95 +246,146 @@ async function chatWithIA(userId, userMessage, conversationHistory = []) {
     return {
       reply,
       context: {
-        receitasMes: context?.receitasMes || 0,
-        despesasMes: context?.despesasMes || 0,
-        saldoMes: context?.saldoMes || 0,
+        receitasMes: context.receitasMes,
+        despesasMes: context.despesasMes,
+        saldoMes: context.saldoMes,
+        saldoGeral: context.saldoGeral,
       },
       fallback: false,
     };
   } catch (error) {
-    console.error("Erro no chat Gemini:", error.message);
+    console.error("Erro no Gemini:", error.message);
     return {
       reply: getFallbackResponse(userMessage, context),
       context: {
-        receitasMes: context?.receitasMes || 0,
-        despesasMes: context?.despesasMes || 0,
-        saldoMes: context?.saldoMes || 0,
+        receitasMes: context.receitasMes,
+        despesasMes: context.despesasMes,
+        saldoMes: context.saldoMes,
       },
       fallback: true,
     };
   }
 }
 
-// Fallback local (sem IA)
+// Fallback local inteligente (quando Gemini não está disponível)
 function getFallbackResponse(message, context) {
   const msg = message.toLowerCase();
 
-  if (msg.includes("saldo") || msg.includes("quanto tenho")) {
-    const saldo = context?.saldoMes || 0;
-    const receitas = context?.receitasMes || 0;
-    const despesas = context?.despesasMes || 0;
-    return `💰 **Resumo Financeiro**\n\n📥 Receitas: R$ ${receitas.toFixed(2)}\n📤 Despesas: R$ ${despesas.toFixed(2)}\n💵 Saldo: R$ ${saldo.toFixed(2)}`;
+  if (msg.includes("saldo") || msg.includes("quanto tenho") || msg.includes("disponível")) {
+    return `💰 **Seu Saldo Financeiro**\n\n📥 Receitas do mês: R$ ${context.receitasMes.toFixed(2)}\n📤 Despesas do mês: R$ ${context.despesasMes.toFixed(2)}\n📈 Investimentos: R$ ${context.investimentosMes.toFixed(2)}\n\n💵 **Saldo do mês: R$ ${context.saldoMes.toFixed(2)}**\n🏦 Saldo geral: R$ ${context.saldoGeral.toFixed(2)}`;
+  }
+
+  if (msg.includes("gasto") || msg.includes("gastei") || msg.includes("despesa") || msg.includes("categoria")) {
+    const categorias = Object.entries(context.gastosPorCategoria || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([nome, valor]) => `• ${nome}: R$ ${valor.toFixed(2)}`)
+      .join("\n");
+    return `📊 **Gastos por Categoria (${context.mesAtual})**\n\n${categorias || "Nenhum gasto registrado"}\n\n💡 Total: R$ ${context.despesasMes.toFixed(2)}`;
   }
 
   if (msg.includes("dívida") || msg.includes("divida") || msg.includes("devo")) {
-    if (context?.dividasAtivas?.length > 0) {
+    if (context.dividasAtivas.length > 0) {
       const dividas = context.dividasAtivas
-        .map((d) => `• ${d.nome}: R$ ${d.valorRestante.toFixed(2)} restantes (${d.parcelas} parcelas)`)
+        .map((d) => `• ${d.nome}: R$ ${d.valorRestante.toFixed(2)} restantes (${d.parcelas} parcelas) - ${d.status}`)
         .join("\n");
-      return `📋 **Dívidas ativas:**\n${dividas}`;
+      return `📋 **Dívidas Ativas**\n\n${dividas}\n\n⚠️ Total pendente: R$ ${context.dividasAtivas.reduce((acc, d) => acc + d.valorRestante, 0).toFixed(2)}`;
     }
     return "🎉 Você não tem dívidas ativas!";
   }
 
-  if (msg.includes("boleto") || msg.includes("pagar")) {
-    if (context?.boletosPendentes?.length > 0) {
+  if (msg.includes("boleto") || msg.includes("pagar") || msg.includes("vencimento")) {
+    if (context.boletosPendentes.length > 0) {
       const boletos = context.boletosPendentes
         .map((b) => `• ${b.descricao}: R$ ${b.valor.toFixed(2)} (Vence: ${b.vencimento})`)
         .join("\n");
-      return `📄 **Boletos pendentes:**\n${boletos}`;
+      return `📄 **Boletos Pendentes**\n\n${boletos}\n\n📌 Total: R$ ${context.boletosPendentes.reduce((acc, b) => acc + b.valor, 0).toFixed(2)}`;
     }
     return "✅ Não há boletos pendentes!";
   }
 
-  if (msg.includes("gastei") || msg.includes("despesa") || msg.includes("gasto")) {
-    return `📊 Este mês você gastou **R$ ${(context?.despesasMes || 0).toFixed(2)}** no total.\n\nPara ver o detalhamento por categoria, acesse o Dashboard.`;
-  }
-
-  if (msg.includes("dica") || msg.includes("economizar") || msg.includes("economia")) {
-    const despesas = context?.despesasMes || 0;
-    const receitas = context?.receitasMes || 0;
-    const porcentagem = receitas > 0 ? ((despesas / receitas) * 100).toFixed(1) : 0;
-    return `💡 **Dicas personalizadas:**\n\n📊 Você gasta ${porcentagem}% da sua renda.\n\n✅ Tente manter as despesas abaixo de 70% da renda\n✅ Reserve 10% para investimentos\n✅ Tenha uma reserva de emergência de 3-6 meses\n✅ Categorize todos os gastos para identificar excessos`;
-  }
-
-  return `Olá! Sou a FinIA, sua assistente financeira. 💚\n\nPosso ajudar com:\n📊 Saldo e resumo do mês\n💰 Análise de gastos\n📋 Dívidas ativas\n📄 Boletos pendentes\n💡 Dicas de economia\n\nO que você gostaria de saber?`;
-}
-
-// Categorização automática via Gemini
-async function categorizeTransaction(description, amount, categories) {
-  try {
-    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.includes("sua-chave")) {
-      return null;
+  if (msg.includes("dica") || msg.includes("economizar") || msg.includes("economia") || msg.includes("melhorar")) {
+    const porcentagem = context.receitasMes > 0 ? ((context.despesasMes / context.receitasMes) * 100).toFixed(1) : 0;
+    const maiorCategoria = Object.entries(context.gastosPorCategoria || {}).sort((a, b) => b[1] - a[1])[0];
+    
+    let dicas = `💡 **Análise e Dicas Personalizadas**\n\n`;
+    dicas += `📊 Você gasta ${porcentagem}% da sua renda mensal.\n\n`;
+    
+    if (porcentagem > 70) {
+      dicas += `⚠️ Alerta: seus gastos estão acima de 70% da renda. Tente reduzir despesas não essenciais.\n\n`;
+    } else {
+      dicas += `✅ Seus gastos estão sob controle!\n\n`;
     }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const categoryNames = categories.map((c) => c.name).join(", ");
-
-    const prompt = `Categorize esta transação financeira em uma das categorias listadas.\n\nDescrição: "${description}"\nValor: R$ ${amount}\nCategorias: ${categoryNames}\n\nResponda APENAS com o nome exato da categoria.`;
-
-    const result = await model.generateContent(prompt);
-    const suggestedCategory = result.response.text().trim();
-
-    const match = categories.find(
-      (c) => c.name.toLowerCase() === suggestedCategory.toLowerCase()
-    );
-
-    return match ? match.id : null;
-  } catch (error) {
-    console.error("Erro na categorização:", error.message);
-    return null;
+    
+    if (maiorCategoria) {
+      dicas += `🔍 Sua maior despesa é "${maiorCategoria[0]}": R$ ${maiorCategoria[1].toFixed(2)}\n`;
+      dicas += `💡 Avalie se há como reduzir esse gasto.\n\n`;
+    }
+    
+    dicas += `📌 Recomendações:\n`;
+    dicas += `• Reserve 10% da renda para investimentos\n`;
+    dicas += `• Mantenha reserva de emergência (3-6 meses de despesas)\n`;
+    dicas += `• Categorize todos os gastos para identificar excessos`;
+    
+    return dicas;
   }
+
+  if (msg.includes("investimento") || msg.includes("investi")) {
+    return `📈 **Investimentos (${context.mesAtual})**\n\n💰 Aportes do mês: R$ ${context.investimentosMes.toFixed(2)}\n💡 Lembre-se: investir é construir patrimônio de longo prazo!`;
+  }
+
+  if (msg.includes("comprar") || msg.includes("celular") || msg.includes("meta") || msg.includes("planej") || msg.includes("organizar") || msg.includes("junta")) {
+  const saldoDisponivel = context.saldoMes || 0;
+  const sobraPorMes = context.receitasMes - context.despesasMes - context.investimentosMes;
+  
+  let resposta = `🎯 **Planejamento de Compra**\n\n`;
+  resposta += `📊 Sua situação atual:\n`;
+  resposta += `• Receitas: R$ ${context.receitasMes.toFixed(2)}\n`;
+  resposta += `• Despesas: R$ ${context.despesasMes.toFixed(2)}\n`;
+  resposta += `• Investimentos: R$ ${context.investimentosMes.toFixed(2)}\n`;
+  resposta += `• Sobra mensal: R$ ${sobraPorMes.toFixed(2)}\n`;
+  resposta += `• Saldo acumulado: R$ ${context.saldoGeral.toFixed(2)}\n\n`;
+  
+  // Pegar o maior gasto
+  const categorias = Object.entries(context.gastosPorCategoria || {}).sort((a, b) => b[1] - a[1]);
+  if (categorias.length > 0) {
+    resposta += `🔍 Seus maiores gastos:\n`;
+    categorias.slice(0, 3).forEach(([nome, valor]) => {
+      resposta += `• ${nome}: R$ ${valor.toFixed(2)}\n`;
+    });
+    resposta += `\n`;
+  }
+  
+  resposta += `💡 **Sugestão de planejamento:**\n`;
+  resposta += `• Reserve a sobra mensal (R$ ${sobraPorMes.toFixed(2)}) para sua meta\n`;
+  resposta += `• Reduza gastos não essenciais (como ${categorias[0]?.[0] || "lazer"})\n`;
+  resposta += `• Crie uma categoria "Celular" como meta de investimento\n`;
+  resposta += `• Acompanhe seu progresso no Dashboard\n\n`;
+  resposta += `📱 Com planejamento, você consegue!`;
+  
+  return resposta;
 }
 
-module.exports = { chatWithIA, categorizeTransaction };
+// Resumo geral / overview
+if (msg.includes("resumo") || msg.includes("geral") || msg.includes("tudo") || msg.includes("visão") || msg.includes("como estou")) {
+  const categoriasStr = Object.entries(context.gastosPorCategoria || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([nome, valor]) => `• ${nome}: R$ ${valor.toFixed(2)}`)
+    .join("\n");
+
+  return `📊 **Resumo Financeiro Completo (${context.mesAtual})**\n\n` +
+    `📥 Receitas: R$ ${context.receitasMes.toFixed(2)}\n` +
+    `📤 Despesas: R$ ${context.despesasMes.toFixed(2)}\n` +
+    `📈 Investimentos: R$ ${context.investimentosMes.toFixed(2)}\n` +
+    `💵 Saldo mês: R$ ${context.saldoMes.toFixed(2)}\n` +
+    `🏦 Saldo geral: R$ ${context.saldoGeral.toFixed(2)}\n\n` +
+    `🔍 Top 5 gastos:\n${categoriasStr || "Nenhum gasto"}\n\n` +
+    (context.dividasAtivas.length > 0 ? `📋 ${context.dividasAtivas.length} dívida(s) ativa(s)\n` : "") +
+    (context.boletosPendentes.length > 0 ? `📄 ${context.boletosPendentes.length} boleto(s) pendente(s)` : "✅ Sem boletos pendentes");
+}
+
+  // Resposta padrão
+  return `Olá! Sou a **FinIA**, sua assistente financeira com inteligência artificial. 💚\n\nTenho acesso aos seus dados financeiros reais e posso ajudar com:\n\n📊 Saldo e resumo financeiro\n💰 Análise de gastos por categoria\n📋 Dívidas ativas e status\n📄 Boletos pendentes\n💡 Dicas personalizadas de economia\n📈 Informações sobre investimentos\n\n**O que você gostaria de saber?**`;
+}
+
+module.exports = { chatWithIA };

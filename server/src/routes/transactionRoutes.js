@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middlewares/authMiddleware");
-const { list, create, update, remove } = require("../controllers/transactionController");
+const ctrl = require("../controllers/transactionController");
 
 router.use(authMiddleware);
 
-router.get("/", list);
-router.post("/", create);
-router.put("/:id", update);
-router.delete("/:id", remove);
+router.get("/", ctrl.list);
+router.post("/", ctrl.create);
+router.delete("/all", ctrl.removeAll);
+router.put("/:id", ctrl.update);
+router.delete("/:id", ctrl.remove);
 
 module.exports = router;

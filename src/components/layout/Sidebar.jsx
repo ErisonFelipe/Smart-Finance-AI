@@ -116,9 +116,17 @@ export default function Sidebar() {
         {/* Footer com usuário e logout */}
         <div className="border-t p-4">
           <div className="flex items-center gap-3 rounded-lg bg-muted p-3 mb-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-success-foreground text-xs font-bold">
-              {user?.name?.charAt(0) || "U"}
-            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-success-foreground text-xs font-bold overflow-hidden">
+  {user?.photoUrl ? (
+    <img
+      src={user.photoUrl?.startsWith("http") ? user.photoUrl : `http://localhost:3001${user.photoUrl}`}
+      alt={user.name}
+      className="h-full w-full object-cover"
+    />
+  ) : (
+    user?.name?.charAt(0) || "U"
+  )}
+</div>
             <div className="flex-1 overflow-hidden">
               <p className="text-sm font-medium truncate">{user?.name || "Usuário"}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>

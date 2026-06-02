@@ -20,6 +20,11 @@ const transactionService = {
     const response = await api.delete(`/transactions/${id}`);
     return response.data;
   },
+
+  deleteAll: async () => {
+  const response = await api.delete("/transactions/all");
+  return response.data;
+},
 };
 
 export default transactionService;
