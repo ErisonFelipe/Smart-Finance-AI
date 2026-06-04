@@ -1,13 +1,7 @@
 import axios from "axios";
 
-// Detecta se está em produção ou desenvolvimento
-const isProduction = import.meta.env.PROD;
-
-// Em produção, usa a mesma URL do frontend
-// Em desenvolvimento no celular, usa o IP do PC
-const baseURL = isProduction
-  ? "/api"
-  : `${window.location.protocol}//${window.location.hostname}:3001/api`;
+const baseURL = import.meta.env.VITE_API_URL || 
+  `${window.location.protocol}//${window.location.hostname}:3001/api`;
 
 const api = axios.create({
   baseURL,
