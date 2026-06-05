@@ -14,29 +14,39 @@ import {
   subMonths,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeftIcon, ChevronRightIcon, ArrowUpIcon, ArrowDownIcon, BarcodeIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ArrowUpIcon, ArrowDownIcon, BarcodeIcon, TrendingUpIcon } from "lucide-react";
+import transactionService from "@/api/transactionService";
+
+const tipoConfig = {
+  renda: { icone: ArrowUpIcon, cor: "text-success", bg: "bg-success/10", dot: "bg-success" },
+  despesa: { icone: ArrowDownIcon, cor: "text-destructive", bg: "bg-destructive/10", dot: "bg-destructive" },
+  boleto: { icone: BarcodeIcon, cor: "text-info", bg: "bg-info/10", dot: "bg-info" },
+  investimento: { icone: TrendingUpIcon, cor: "text-warning", bg: "bg-warning/10", dot: "bg-warning" },
+};
 
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Eventos mockados (transações + boletos)
-    const mockEvents = [
-      { id: 1, descricao: "Salário", data: "2026-06-01", tipo: "renda", valor: 5000.00 },
-      { id: 2, descricao: "Aluguel", data: "2026-06-05", tipo: "despesa", valor: 1500.00 },
-      { id: 3, descricao: "Internet", data: "2026-06-10", tipo: "despesa", valor: 119.90 },
-      { id: 4, descricao: "Supermercado", data: "2026-06-08", tipo: "despesa", valor: 650.30 },
-      { id: 5, descricao: "Freelance", data: "2026-06-15", tipo: "renda", valor: 2000.00 },
-      { id: 6, descricao: "Plano de Saúde", data: "2026-06-10", tipo: "boleto", valor: 450.00 },
-      { id: 7, descricao: "Seguro Auto", data: "2026-06-05", tipo: "boleto", valor: 320.00 },
-      { id: 8, descricao: "Gasolina", data: "2026-06-15", tipo: "despesa", valor: 200.00 },
-      { id: 9, descricao: "Investimento", data: "2026-06-20", tipo: "investimento", valor: 500.00 },
-      { id: 10, descricao: "Venda produto", data: "2026-05-28", tipo: "renda", valor: 350.00 },
-    ];
-    setEvents(mockEvents);
-  }, []);
+    loadEvents();
+  }, [currentMonth]);
+
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const month = currentMonth.getMonth() + 1;
+      const year = currentMonth.getFullYear();
+      const data = await transactionService.calendar(month, year);
+      setEvents(data);
+    } catch (error) {
+      console.error("Erro ao carregar eventos:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Gerar dias do calendário
   const monthStart = startOfMonth(currentMonth);
@@ -70,16 +80,8 @@ export default function CalendarPage() {
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
-  const tipoConfig = {
-    renda: { icone: ArrowUpIcon, cor: "text-success", bg: "bg-success/10", dot: "bg-success" },
-    despesa: { icone: ArrowDownIcon, cor: "text-destructive", bg: "bg-destructive/10", dot: "bg-destructive" },
-    boleto: { icone: BarcodeIcon, cor: "text-info", bg: "bg-info/10", dot: "bg-info" },
-    investimento: { icone: ArrowUpIcon, cor: "text-warning", bg: "bg-warning/10", dot: "bg-warning" },
-  };
-
   return (
     <div className="flex flex-col gap-6">
-      {/* Cabeçalho */}
       <div>
         <h2 className="text-2xl font-bold">Calendário Financeiro</h2>
         <p className="text-muted-foreground">Acompanhe seus vencimentos e recebimentos</p>
@@ -88,109 +90,102 @@ export default function CalendarPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Calendário */}
         <div className="lg:col-span-2">
-          <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
             {/* Navegação do mês */}
             <div className="mb-4 flex items-center justify-between">
-              <button
-                onClick={prevMonth}
-                className="rounded p-1 hover:bg-muted"
-              >
+              <button onClick={prevMonth} className="rounded-lg p-2 hover:bg-muted transition-colors">
                 <ChevronLeftIcon className="h-5 w-5" />
               </button>
               <h3 className="text-lg font-semibold capitalize">
                 {format(currentMonth, "MMMM 'de' yyyy", { locale: ptBR })}
               </h3>
-              <button
-                onClick={nextMonth}
-                className="rounded p-1 hover:bg-muted"
-              >
+              <button onClick={nextMonth} className="rounded-lg p-2 hover:bg-muted transition-colors">
                 <ChevronRightIcon className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Dias da semana */}
-            <div className="mb-2 grid grid-cols-7">
-              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dia) => (
-                <div key={dia} className="text-center text-xs font-medium text-muted-foreground">
-                  {dia}
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              </div>
+            ) : (
+              <>
+                {/* Dias da semana */}
+                <div className="mb-2 grid grid-cols-7">
+                  {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dia) => (
+                    <div key={dia} className="text-center text-xs font-medium text-muted-foreground py-1">
+                      {dia}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Grid do calendário */}
-            <div className="flex flex-col gap-1">
-              {rows.map((row, rowIndex) => (
-                <div key={rowIndex} className="grid grid-cols-7 gap-1">
-                  {row.map((date, dayIndex) => {
-                    const dayEvents = getEventsForDay(date);
-                    const isCurrentMonth = isSameMonth(date, currentMonth);
-                    const isSelected = isSameDay(date, selectedDate);
-                    const isDayToday = isToday(date);
+                {/* Grid do calendário */}
+                <div className="flex flex-col gap-1">
+                  {rows.map((row, rowIndex) => (
+                    <div key={rowIndex} className="grid grid-cols-7 gap-1">
+                      {row.map((date, dayIndex) => {
+                        const dayEvents = getEventsForDay(date);
+                        const isCurrentMonth = isSameMonth(date, currentMonth);
+                        const isSelected = isSameDay(date, selectedDate);
+                        const isDayToday = isToday(date);
 
-                    return (
-                      <button
-                        key={dayIndex}
-                        onClick={() => setSelectedDate(date)}
-                        className={`flex flex-col items-center rounded-md p-2 text-sm transition-colors hover:bg-muted ${
-                          !isCurrentMonth ? "text-muted-foreground/40" : ""
-                        } ${isSelected ? "bg-primary text-primary-foreground" : ""} ${
-                          isDayToday && !isSelected ? "ring-2 ring-primary" : ""
-                        }`}
-                      >
-                        <span>{format(date, "d")}</span>
-                        {/* Dots de eventos */}
-                        {dayEvents.length > 0 && (
-                          <div className="mt-1 flex gap-0.5">
-                            {[...new Set(dayEvents.map((e) => e.tipo))].map((tipo) => (
-                              <span
-                                key={tipo}
-                                className={`h-1.5 w-1.5 rounded-full ${
-                                  isSelected ? "bg-primary-foreground" : tipoConfig[tipo]?.dot || "bg-muted-foreground"
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                        return (
+                          <button
+                            key={dayIndex}
+                            onClick={() => setSelectedDate(date)}
+                            className={`flex flex-col items-center rounded-lg p-2 text-sm transition-all hover:bg-muted ${
+                              !isCurrentMonth ? "opacity-30" : ""
+                            } ${isSelected ? "bg-primary text-primary-foreground shadow-sm" : ""} ${
+                              isDayToday && !isSelected ? "ring-2 ring-primary ring-offset-1" : ""
+                            }`}
+                          >
+                            <span className="font-medium">{format(date, "d")}</span>
+                            {dayEvents.length > 0 && (
+                              <div className="mt-1 flex gap-0.5">
+                                {[...new Set(dayEvents.map((e) => e.tipo))].slice(0, 3).map((tipo) => (
+                                  <span
+                                    key={tipo}
+                                    className={`h-1.5 w-1.5 rounded-full ${
+                                      isSelected ? "bg-primary-foreground" : tipoConfig[tipo]?.dot || "bg-muted-foreground"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Legenda */}
-            <div className="mt-4 flex flex-wrap gap-4 border-t pt-4">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-success" />
-                Receita
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-destructive" />
-                Despesa
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-info" />
-                Boleto
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-warning" />
-                Investimento
-              </div>
-            </div>
+                {/* Legenda */}
+                <div className="mt-4 flex flex-wrap gap-4 border-t pt-4">
+                  {Object.entries(tipoConfig).map(([key, config]) => (
+                    <div key={key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className={`h-2 w-2 rounded-full ${config.dot}`} />
+                      {key.charAt(0).toUpperCase() + key.slice(1)}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Eventos do dia selecionado */}
         <div className="lg:col-span-1">
-          <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
             <h3 className="mb-4 text-lg font-semibold">
               {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
             </h3>
 
             {selectedEvents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum evento neste dia</p>
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">Nenhum evento neste dia</p>
+              </div>
             ) : (
-              <ul className="flex flex-col gap-3">
+              <ul className="flex flex-col gap-2">
                 {selectedEvents.map((event) => {
                   const config = tipoConfig[event.tipo] || tipoConfig.despesa;
                   const Icon = config.icone;
@@ -198,18 +193,22 @@ export default function CalendarPage() {
                   return (
                     <li
                       key={event.id}
-                      className="flex items-center justify-between rounded-md border p-3"
+                      className={`flex items-center justify-between rounded-lg border p-3 ${
+                        event.pago ? "opacity-60" : ""
+                      }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`rounded-full p-1.5 ${config.bg}`}>
+                        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${config.bg}`}>
                           <Icon className={`h-4 w-4 ${config.cor}`} />
                         </div>
                         <div>
                           <p className="text-sm font-medium">{event.descricao}</p>
-                          <p className="text-xs capitalize text-muted-foreground">{event.tipo}</p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {event.tipo} {event.pago ? "• Pago" : "• Pendente"}
+                          </p>
                         </div>
                       </div>
-                      <p className={`text-sm font-medium ${config.cor}`}>
+                      <p className={`text-sm font-semibold ${config.cor}`}>
                         {event.valor.toLocaleString("pt-BR", {
                           style: "currency",
                           currency: "BRL",
@@ -224,16 +223,16 @@ export default function CalendarPage() {
             {/* Resumo do dia */}
             {selectedEvents.length > 0 && (
               <div className="mt-4 border-t pt-4">
-                <p className="text-sm font-medium">Resumo do dia:</p>
+                <p className="text-sm font-medium mb-2">Resumo do dia:</p>
                 <p className="text-sm text-success">
-                  Entradas: +{" "}
+                  +{" "}
                   {selectedEvents
                     .filter((e) => e.tipo === "renda")
                     .reduce((acc, e) => acc + e.valor, 0)
                     .toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </p>
                 <p className="text-sm text-destructive">
-                  Saídas: -{" "}
+                  -{" "}
                   {selectedEvents
                     .filter((e) => e.tipo === "despesa" || e.tipo === "boleto")
                     .reduce((acc, e) => acc + e.valor, 0)

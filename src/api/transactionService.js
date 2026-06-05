@@ -25,6 +25,11 @@ const transactionService = {
   const response = await api.delete("/transactions/all");
   return response.data;
 },
+
+calendar: async (month, year) => {
+  const response = await api.get("/transactions/calendar", { params: { month, year } });
+  return response.data;
+},
 };
 
 export default transactionService;
