@@ -9,16 +9,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.StrictMode>
 );
 
-// Registrar Service Worker
+// Service Worker desabilitado temporariamente
+// Será reativado após estabilizar o deploy
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((registration) => {
-        console.log("✅ Service Worker registrado:", registration.scope);
-      })
-      .catch((error) => {
-        console.log("❌ Service Worker falhou:", error);
-      });
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((registration) => {
+      registration.unregister();
+      console.log("Service Worker removido");
+    });
   });
 }
