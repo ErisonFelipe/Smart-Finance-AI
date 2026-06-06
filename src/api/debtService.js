@@ -10,6 +10,11 @@ const debtService = {
     const response = await api.post("/debts", data);
     return response.data;
   },
+
+  delete: async (id) => {
+    const response = await api.delete(`/debts/${id}`);
+    return response.data;
+  },
 };
 
 export default debtService;

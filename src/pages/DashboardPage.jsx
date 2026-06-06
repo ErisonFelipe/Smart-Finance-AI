@@ -35,12 +35,14 @@ export default function DashboardPage() {
 
       const totalReceitas = summary.receitasMes || 0;
       const totalDespesas = summary.despesasMes || 0;
+      const patrimonioTotal = (summary.saldoAtual || 0) + (summary.investimentosMes || 0);
 
       setData({
         saldoAtual: summary.saldoAtual || 0,
         receitasMes: totalReceitas,
         despesasMes: totalDespesas,
         investimentosMes: summary.investimentosMes || 0,
+        patrimonioTotal,
         despesasPorCategoria,
         proximosVencimentos,
         evolucaoMensal: [
@@ -109,6 +111,7 @@ export default function DashboardPage() {
         receitasMes={data.receitasMes}
         despesasMes={data.despesasMes}
         investimentosMes={data.investimentosMes}
+        patrimonioTotal={data.patrimonioTotal}
       />
 
       {/* Gráficos e Lista */}

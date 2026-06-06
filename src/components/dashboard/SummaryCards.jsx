@@ -63,7 +63,7 @@ export default function SummaryCards({ saldoAtual, receitasMes, despesasMes, inv
                 {card.titulo}
               </p>
               <p className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-                {valores[index]?.toLocaleString("pt-BR", {
+                {(valores[index]?? 0).toLocaleString("pt-BR", {
                   style: "currency",
                   currency: "BRL",
                   minimumFractionDigits: 2,

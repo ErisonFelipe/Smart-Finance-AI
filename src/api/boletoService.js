@@ -10,6 +10,11 @@ const boletoService = {
     const response = await api.post("/boletos", data);
     return response.data;
   },
+
+  delete: async (id) => {
+    const response = await api.delete(`/boletos/${id}`);
+    return response.data;
+  },
 };
 
 export default boletoService;
