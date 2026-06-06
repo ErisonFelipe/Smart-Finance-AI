@@ -1,8 +1,8 @@
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { AlertCircleIcon, CheckCircleIcon, ClockIcon, TrashIcon } from "lucide-react";
+import { AlertCircleIcon, CheckCircleIcon, ClockIcon, TrashIcon, PencilIcon } from "lucide-react";
 
-export default function DebtList({ debts, emptyMessage, isHistory = false, onDelete, onPayInstallment }) {
+export default function DebtList({ debts, emptyMessage, isHistory = false, onDelete, onPayInstallment, onEdit }) {
   if (!debts || debts.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
@@ -46,14 +46,23 @@ export default function DebtList({ debts, emptyMessage, isHistory = false, onDel
                     Restante: {valorRestante.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </p>
                 </div>
-                {!isHistory && onDelete && (
-                  <button
-                    onClick={() => onDelete(debt.id)}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                    title="Excluir dívida"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
+                {!isHistory && (
+                  <>
+                    <button
+                      onClick={() => onEdit && onEdit(debt)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                      title="Editar dívida"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete && onDelete(debt.id)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      title="Excluir dívida"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -83,7 +92,6 @@ export default function DebtList({ debts, emptyMessage, isHistory = false, onDel
               <span>Parcela: {(debt.totalAmount / debt.installments).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
             </div>
 
-            {/* Parcelas clicáveis */}
             {!isHistory && debt.installmentList && debt.installmentList.length > 0 && (
               <div className="pt-3 border-t">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Parcelas:</p>

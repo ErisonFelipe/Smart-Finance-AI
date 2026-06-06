@@ -11,8 +11,18 @@ const boletoService = {
     return response.data;
   },
 
+  update: async (id, data) => {
+    const response = await api.put(`/boletos/${id}`, data);
+    return response.data;
+  },
+
   delete: async (id) => {
     const response = await api.delete(`/boletos/${id}`);
+    return response.data;
+  },
+
+  togglePaid: async (id, paid) => {
+    const response = await api.put(`/boletos/${id}`, { paid });
     return response.data;
   },
 };

@@ -3,6 +3,7 @@ import { PlusIcon } from "lucide-react";
 import DebtList from "@/components/debts/DebtList";
 import BoletoForm from "@/components/debts/BoletoForm";
 import DebtModal from "@/components/debts/DebtModal";
+import EditDebtModal from "@/components/debts/EditDebtModal";
 import debtService from "@/api/debtService";
 import boletoService from "@/api/boletoService";
 
@@ -13,6 +14,7 @@ export default function DebtsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState("divida");
   const [loading, setLoading] = useState(true);
+  const [editingItem, setEditingItem] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -85,6 +87,31 @@ export default function DebtsPage() {
     }
   };
 
+  const handleToggleBoleto = async (id, paid) => {
+    try {
+      await boletoService.togglePaid(id, paid);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao atualizar boleto:", error);
+    }
+  };
+
+  const handleEdit = (item) => setEditingItem(item);
+
+  const handleSaveEdit = async (id, data) => {
+    try {
+      if (editingItem?.installmentList !== undefined || editingItem?.status !== undefined) {
+        await debtService.update(id, data);
+      } else {
+        await boletoService.update(id, data);
+      }
+      setEditingItem(null);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao editar:", error);
+    }
+  };
+
   const openModal = (type) => {
     setModalType(type);
     setIsModalOpen(true);
@@ -103,7 +130,7 @@ export default function DebtsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold">Dívidas e Boletos</h2>
           <p className="text-muted-foreground">Controle suas dívidas e boletos pendentes</p>
@@ -124,7 +151,6 @@ export default function DebtsPage() {
         </div>
       </div>
 
-      {/* Abas */}
       <div className="flex border-b">
         {["dividas", "boletos", "historico"].map((tab) => (
           <button
@@ -141,18 +167,23 @@ export default function DebtsPage() {
         ))}
       </div>
 
-      {/* Conteúdo */}
       {activeTab === "dividas" && (
         <DebtList
           debts={debts.filter((d) => d.status !== "finished")}
           emptyMessage="Nenhuma dívida ativa"
           onDelete={handleDeleteDebt}
           onPayInstallment={handlePayInstallment}
+          onEdit={handleEdit}
         />
       )}
 
       {activeTab === "boletos" && (
-        <BoletoForm boletos={boletos} onDelete={handleDeleteBoleto} />
+        <BoletoForm
+          boletos={boletos}
+          onDelete={handleDeleteBoleto}
+          onTogglePaid={handleToggleBoleto}
+          onEdit={handleEdit}
+        />
       )}
 
       {activeTab === "historico" && (
@@ -163,12 +194,20 @@ export default function DebtsPage() {
         />
       )}
 
-      {/* Modal */}
       {isModalOpen && (
         <DebtModal
           type={modalType}
           onClose={() => setIsModalOpen(false)}
           onSave={modalType === "divida" ? handleAddDebt : handleAddBoleto}
+        />
+      )}
+
+      {editingItem && (
+        <EditDebtModal
+          item={editingItem}
+          type={editingItem?.installmentList !== undefined || editingItem?.status !== undefined ? "divida" : "boleto"}
+          onClose={() => setEditingItem(null)}
+          onSave={handleSaveEdit}
         />
       )}
     </div>
