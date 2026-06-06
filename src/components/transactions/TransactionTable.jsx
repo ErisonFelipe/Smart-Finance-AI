@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale"; 
+import { ptBR } from "date-fns/locale";
 import { ArrowUpIcon, ArrowDownIcon, TrendingUpIcon, CheckCircleIcon, ClockIcon, TrashIcon } from "lucide-react";
 
 const tipoConfig = {
@@ -12,7 +12,10 @@ export default function TransactionTable({ transactions, onDelete }) {
   if (!transactions || transactions.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-        Nenhuma transação encontrada
+        <p className="text-sm">Nenhuma transação encontrada</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Clique em "Nova Transação" para adicionar
+        </p>
       </div>
     );
   }
@@ -23,12 +26,24 @@ export default function TransactionTable({ transactions, onDelete }) {
         <table className="w-full">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">DATA</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">DESCRIÇÃO</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">CATEGORIA</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">VALOR</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">STATUS</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">AÇÕES</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Data
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Descrição
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">
+                Categoria
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Valor
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-10">
+                Ações
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -38,27 +53,58 @@ export default function TransactionTable({ transactions, onDelete }) {
               const data = transaction.dueDate ? parseISO(transaction.dueDate) : new Date();
 
               return (
-                <tr key={transaction.id} className="border-b transition-colors hover:bg-muted/30">
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                <tr
+                  key={transaction.id}
+                  className="border-b transition-colors hover:bg-muted/30"
+                >
+                  {/* Data */}
+                  <td className="px-4 py-3 text-sm whitespace-nowrap text-muted-foreground">
                     {format(data, "dd/MM/yyyy")}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium">{transaction.description}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.cor}`}>
+
+                  {/* Descrição + categoria no mobile */}
+                  <td className="px-4 py-3 text-sm font-medium">
+                    <p className="truncate max-w-[150px] sm:max-w-none">
+                      {transaction.description}
+                    </p>
+                    {/* Categoria visível só no mobile */}
+                    <span
+                      className={`inline-flex sm:hidden items-center gap-1 rounded-full px-2 py-0.5 text-xs mt-1 ${config.bg} ${config.cor}`}
+                    >
                       <Icon className="h-3 w-3" />
                       {transaction.category?.name || config.label}
                     </span>
                   </td>
-                  <td className={`px-4 py-3 text-sm font-semibold whitespace-nowrap ${
-                    transaction.type === "expense" ? "text-destructive" : "text-success"
-                  }`}>
+
+                  {/* Categoria (desktop) */}
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.cor}`}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {transaction.category?.name || config.label}
+                    </span>
+                  </td>
+
+                  {/* Valor */}
+                  <td
+                    className={`px-4 py-3 text-sm font-semibold whitespace-nowrap ${
+                      transaction.type === "expense"
+                        ? "text-destructive"
+                        : transaction.type === "income"
+                          ? "text-success"
+                          : "text-warning"
+                    }`}
+                  >
                     {transaction.type === "expense" ? "- " : "+ "}
-                    {transaction.amount?.toLocaleString("pt-BR", {
+                    {(transaction.amount || 0).toLocaleString("pt-BR", {
                       style: "currency",
                       currency: "BRL",
                     })}
                   </td>
-                  <td className="px-4 py-3">
+
+                  {/* Status (desktop) */}
+                  <td className="px-4 py-3 hidden md:table-cell">
                     {transaction.paid ? (
                       <span className="inline-flex items-center gap-1 text-xs text-success">
                         <CheckCircleIcon className="h-3 w-3" />
@@ -71,7 +117,9 @@ export default function TransactionTable({ transactions, onDelete }) {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+
+                  {/* Ações */}
+                  <td className="px-2 py-3 text-center">
                     <button
                       onClick={() => onDelete && onDelete(transaction.id)}
                       className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
@@ -85,6 +133,11 @@ export default function TransactionTable({ transactions, onDelete }) {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Contagem */}
+      <div className="border-t px-4 py-2 text-xs text-muted-foreground">
+        {transactions.length} transação{transactions.length !== 1 ? "ões" : ""}
       </div>
     </div>
   );

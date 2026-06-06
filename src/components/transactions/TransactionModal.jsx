@@ -2,10 +2,17 @@ import { useState, useEffect } from "react";
 import { XIcon, SaveIcon, LoaderIcon } from "lucide-react";
 import categoryService from "@/api/categoryService";
 
+const tipoLabels = {
+  expense: "Despesa",
+  income: "Renda",
+  investment: "Invest.",
+};
+
 export default function TransactionModal({ onClose, onSave }) {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
     description: "",
     amount: "",
@@ -15,7 +22,6 @@ export default function TransactionModal({ onClose, onSave }) {
     paid: false,
   });
 
-  // Buscar categorias da API
   useEffect(() => {
     loadCategories();
   }, []);
@@ -25,8 +31,7 @@ export default function TransactionModal({ onClose, onSave }) {
       setLoadingCategories(true);
       const data = await categoryService.list();
       setCategories(data);
-      
-      // Definir primeira categoria como padrão
+
       const expenseCategories = data.filter((c) => c.type === "expense");
       if (expenseCategories.length > 0) {
         setForm((prev) => ({ ...prev, categoryId: expenseCategories[0].id }));
@@ -47,34 +52,37 @@ export default function TransactionModal({ onClose, onSave }) {
       type,
       categoryId: catsOfType.length > 0 ? catsOfType[0].id : "",
     });
+    setErrors({});
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!form.description.trim()) newErrors.description = "Descrição é obrigatória";
+    if (!form.amount || Number(form.amount) <= 0) newErrors.amount = "Valor deve ser maior que zero";
+    if (!form.categoryId) newErrors.categoryId = "Selecione uma categoria";
+    if (!form.date) newErrors.date = "Data é obrigatória";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!form.description || !form.amount || !form.categoryId) {
-      alert("Preencha todos os campos obrigatórios");
-      return;
-    }
+    if (!validate()) return;
 
     try {
       setLoading(true);
-      
-      const dataToSend = {
-        description: form.description,
+      await onSave({
+        description: form.description.trim(),
         amount: parseFloat(form.amount),
         type: form.type,
         categoryId: form.categoryId,
         dueDate: new Date(form.date).toISOString(),
         paid: form.paid,
-      };
-
-      console.log("📤 Enviando:", dataToSend);
-      await onSave(dataToSend);
+      });
       onClose();
     } catch (error) {
-      console.error("❌ Erro ao salvar:", error);
-      alert("Erro ao salvar transação. Tente novamente.");
+      console.error("Erro ao salvar:", error);
+      setErrors({ submit: "Erro ao salvar. Tente novamente." });
     } finally {
       setLoading(false);
     }
@@ -82,10 +90,10 @@ export default function TransactionModal({ onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-xl animate-scale-in">
+      <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-xl animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Nova Transação</h3>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted transition-colors">
             <XIcon className="h-5 w-5" />
           </button>
         </div>
@@ -93,20 +101,20 @@ export default function TransactionModal({ onClose, onSave }) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Tipo */}
           <div>
-            <label className="mb-1 block text-sm font-medium">Tipo *</label>
+            <label className="mb-1 block text-sm font-medium">Tipo</label>
             <div className="flex gap-2">
-              {["expense", "income", "investment"].map((tipo) => (
+              {Object.entries(tipoLabels).map(([tipo, label]) => (
                 <button
                   key={tipo}
                   type="button"
                   onClick={() => handleTypeChange(tipo)}
                   className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                     form.type === tipo
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }`}
                 >
-                  {tipo === "expense" ? "Despesa" : tipo === "income" ? "Renda" : "Invest."}
+                  {label}
                 </button>
               ))}
             </div>
@@ -118,11 +126,12 @@ export default function TransactionModal({ onClose, onSave }) {
             <input
               type="text"
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) => { setForm({ ...form, description: e.target.value }); setErrors({ ...errors, description: null }); }}
               placeholder="Ex: Supermercado Extra"
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              className={`w-full rounded-lg border bg-background px-3 py-2 text-sm ${errors.description ? "border-destructive" : ""}`}
               required
             />
+            {errors.description && <p className="text-xs text-destructive mt-1">{errors.description}</p>}
           </div>
 
           {/* Valor */}
@@ -133,11 +142,12 @@ export default function TransactionModal({ onClose, onSave }) {
               step="0.01"
               min="0.01"
               value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              onChange={(e) => { setForm({ ...form, amount: e.target.value }); setErrors({ ...errors, amount: null }); }}
               placeholder="0,00"
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              className={`w-full rounded-lg border bg-background px-3 py-2 text-sm ${errors.amount ? "border-destructive" : ""}`}
               required
             />
+            {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
           </div>
 
           {/* Data */}
@@ -146,22 +156,26 @@ export default function TransactionModal({ onClose, onSave }) {
             <input
               type="date"
               value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              onChange={(e) => { setForm({ ...form, date: e.target.value }); setErrors({ ...errors, date: null }); }}
+              className={`w-full rounded-lg border bg-background px-3 py-2 text-sm ${errors.date ? "border-destructive" : ""}`}
               required
             />
+            {errors.date && <p className="text-xs text-destructive mt-1">{errors.date}</p>}
           </div>
 
           {/* Categoria */}
           <div>
             <label className="mb-1 block text-sm font-medium">Categoria *</label>
             {loadingCategories ? (
-              <p className="text-sm text-muted-foreground">Carregando categorias...</p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <LoaderIcon className="h-3 w-3 animate-spin" />
+                Carregando categorias...
+              </div>
             ) : (
               <select
                 value={form.categoryId}
-                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+                onChange={(e) => { setForm({ ...form, categoryId: e.target.value }); setErrors({ ...errors, categoryId: null }); }}
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm ${errors.categoryId ? "border-destructive" : ""}`}
                 required
               >
                 <option value="">Selecione...</option>
@@ -170,6 +184,7 @@ export default function TransactionModal({ onClose, onSave }) {
                 ))}
               </select>
             )}
+            {errors.categoryId && <p className="text-xs text-destructive mt-1">{errors.categoryId}</p>}
           </div>
 
           {/* Status */}
@@ -181,22 +196,33 @@ export default function TransactionModal({ onClose, onSave }) {
               onChange={(e) => setForm({ ...form, paid: e.target.checked })}
               className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <label htmlFor="paid" className="text-sm font-medium">Já foi pago/recebido</label>
+            <label htmlFor="paid" className="text-sm font-medium cursor-pointer">
+              Já foi {form.type === "income" ? "recebido" : "pago"}
+            </label>
           </div>
 
-          {/* Botão Salvar */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-          >
-            {loading ? (
-              <LoaderIcon className="h-4 w-4 animate-spin" />
-            ) : (
-              <SaveIcon className="h-4 w-4" />
-            )}
-            {loading ? "Salvando..." : "Salvar Transação"}
-          </button>
+          {errors.submit && (
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{errors.submit}</div>
+          )}
+
+          {/* Botões */}
+          <div className="flex gap-3 mt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50 transition-colors"
+            >
+              {loading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <SaveIcon className="h-4 w-4" />}
+              {loading ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

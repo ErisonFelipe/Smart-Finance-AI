@@ -17,7 +17,8 @@ const useAuthStore = create((set) => ({
       set({ user: data.user, token: data.token, isAuthenticated: true, loading: false });
       return data;
     } catch (error) {
-      set({ error: error.response?.data?.error || "Erro ao fazer login", loading: false });
+      const message = error.response?.data?.error || "Erro ao fazer login";
+      set({ error: message, loading: false });
       throw error;
     }
   },
@@ -31,20 +32,23 @@ const useAuthStore = create((set) => ({
       set({ user: data.user, token: data.token, isAuthenticated: true, loading: false });
       return data;
     } catch (error) {
-      set({ error: error.response?.data?.error || "Erro ao registrar", loading: false });
+      const message = error.response?.data?.error || "Erro ao registrar";
+      set({ error: message, loading: false });
       throw error;
     }
   },
 
   logout: () => {
     authService.logout();
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, token: null, isAuthenticated: false, error: null });
   },
 
   setUser: (user) => {
     localStorage.setItem("user", JSON.stringify(user));
     set({ user });
   },
+
+  clearError: () => set({ error: null }),
 }));
 
 export { useAuthStore };

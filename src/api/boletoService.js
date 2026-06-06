@@ -22,8 +22,7 @@ const boletoService = {
   },
 
   togglePaid: async (id, paid) => {
-    const response = await api.put(`/boletos/${id}`, { paid });
-    return response.data;
+    return boletoService.update(id, { paid });
   },
 };
 

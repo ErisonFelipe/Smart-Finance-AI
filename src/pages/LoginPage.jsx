@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
-import { TrendingUpIcon, EyeIcon, EyeOffIcon, CheckIcon, XIcon } from "lucide-react";
+import { TrendingUpIcon, EyeIcon, EyeOffIcon, CheckIcon, XIcon, LoaderIcon } from "lucide-react";
 import api from "@/api/axios";
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
-  const [emailAvailable, setEmailAvailable] = useState(null); // null, true, false
+  const [emailAvailable, setEmailAvailable] = useState(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -22,7 +22,6 @@ export default function LoginPage() {
   const { login, register, loading } = useAuthStore();
   const navigate = useNavigate();
 
-  // Verificar força da senha
   const checkPasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 8) strength++;
@@ -46,13 +45,11 @@ export default function LoginPage() {
     return "Forte";
   };
 
-  // Verificar se email já existe (com debounce)
   const checkEmail = async (email) => {
     if (!email || !email.includes("@")) {
       setEmailAvailable(null);
       return;
     }
-
     try {
       setCheckingEmail(true);
       const response = await api.post("/auth/check-email", { email });
@@ -68,19 +65,24 @@ export default function LoginPage() {
     const email = e.target.value;
     setForm({ ...form, email });
     setEmailAvailable(null);
-
-    // Debounce: espera 500ms após parar de digitar
     if (window.emailTimeout) clearTimeout(window.emailTimeout);
     window.emailTimeout = setTimeout(() => checkEmail(email), 500);
+  };
+
+  const resetForm = () => {
+    setIsRegister(!isRegister);
+    setError("");
+    setEmailAvailable(null);
+    setPasswordStrength(0);
+    setShowPassword(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    // Validações extras
     if (isRegister) {
-      if (passwordStrength < 3) {
+      if (passwordStrength < 2) {
         setError("A senha precisa ser pelo menos de força Média");
         return;
       }
@@ -97,14 +99,14 @@ export default function LoginPage() {
     try {
       if (isRegister) {
         await register({
-          name: form.name,
-          email: form.email,
+          name: form.name.trim(),
+          email: form.email.trim(),
           password: form.password,
           monthlyIncome: Number(form.monthlyIncome) || 0,
           payDay: Number(form.payDay),
         });
       } else {
-        await login({ email: form.email, password: form.password });
+        await login({ email: form.email.trim(), password: form.password });
       }
       navigate("/");
     } catch (err) {
@@ -113,15 +115,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-primary/5 p-4">
       <div className="w-full max-w-md animate-scale-in">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
             <TrendingUpIcon className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold">FinIA</h1>
-          <p className="text-muted-foreground">Assistente Financeiro Inteligente</p>
+          <h1 className="text-2xl font-bold tracking-tight">FinIA</h1>
+          <p className="text-muted-foreground text-sm">Assistente Financeiro Inteligente</p>
         </div>
 
         {/* Card do formulário */}
@@ -131,14 +133,13 @@ export default function LoginPage() {
           </h2>
 
           {error && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive animate-fade-in">
               <XIcon className="h-4 w-4 shrink-0" />
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Nome (apenas registro) */}
             {isRegister && (
               <div>
                 <label className="mb-1 block text-sm font-medium">Nome *</label>
@@ -146,14 +147,14 @@ export default function LoginPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
                   placeholder="Seu nome completo"
+                  autoComplete="name"
                   required
                 />
               </div>
             )}
 
-            {/* Email */}
             <div>
               <label className="mb-1 block text-sm font-medium">Email *</label>
               <div className="relative">
@@ -161,11 +162,12 @@ export default function LoginPage() {
                   type="email"
                   value={form.email}
                   onChange={handleEmailChange}
-                  className={`w-full rounded-lg border bg-background px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-primary/20 ${
-                    emailAvailable === false ? "border-destructive" : 
+                  className={`w-full rounded-lg border bg-background px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow ${
+                    emailAvailable === false ? "border-destructive" :
                     emailAvailable === true ? "border-success" : ""
                   }`}
                   placeholder="seu@email.com"
+                  autoComplete="email"
                   required
                 />
                 {checkingEmail && (
@@ -188,7 +190,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Senha */}
             <div>
               <label className="mb-1 block text-sm font-medium">Senha *</label>
               <div className="relative">
@@ -199,25 +200,26 @@ export default function LoginPage() {
                     setForm({ ...form, password: e.target.value });
                     if (isRegister) checkPasswordStrength(e.target.value);
                   }}
-                  className="w-full rounded-lg border bg-background px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-primary/20"
+                  className="w-full rounded-lg border bg-background px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
                   placeholder="••••••"
+                  autoComplete={isRegister ? "new-password" : "current-password"}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                 </button>
               </div>
 
-              {/* Força da senha (apenas registro) */}
               {isRegister && form.password.length > 0 && (
-                <div className="mt-2">
+                <div className="mt-2 animate-fade-in">
                   <div className="h-1.5 w-full rounded-full bg-muted">
                     <div
-                      className={`h-1.5 rounded-full transition-all ${getStrengthColor()}`}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${getStrengthColor()}`}
                       style={{ width: `${(passwordStrength / 4) * 100}%` }}
                     />
                   </div>
@@ -242,7 +244,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Renda Mensal + Dia de Recebimento (apenas registro) */}
             {isRegister && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -251,8 +252,9 @@ export default function LoginPage() {
                     type="number"
                     value={form.monthlyIncome}
                     onChange={(e) => setForm({ ...form, monthlyIncome: e.target.value })}
-                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
                     placeholder="R$ 0,00"
+                    min="0"
                   />
                 </div>
                 <div>
@@ -260,7 +262,7 @@ export default function LoginPage() {
                   <select
                     value={form.payDay}
                     onChange={(e) => setForm({ ...form, payDay: e.target.value })}
-                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
                   >
                     {Array.from({ length: 31 }, (_, i) => (
                       <option key={i + 1} value={i + 1}>Dia {i + 1}</option>
@@ -273,21 +275,19 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || (isRegister && emailAvailable === false)}
-              className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50 transition-colors"
+              className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
             >
-              {loading ? "Carregando..." : isRegister ? "Criar Conta" : "Entrar"}
+              {loading ? (
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+              ) : null}
+              {loading ? "Aguarde..." : isRegister ? "Criar Conta" : "Entrar"}
             </button>
           </form>
 
           <div className="mt-4 text-center text-sm text-muted-foreground">
             {isRegister ? "Já tem conta?" : "Não tem conta?"}{" "}
             <button
-              onClick={() => { 
-                setIsRegister(!isRegister); 
-                setError(""); 
-                setEmailAvailable(null);
-                setPasswordStrength(0);
-              }}
+              onClick={resetForm}
               className="font-medium text-primary hover:underline"
             >
               {isRegister ? "Entrar" : "Criar conta"}

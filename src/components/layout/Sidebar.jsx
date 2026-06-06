@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  ArrowLeftRight, 
-  CreditCard, 
-  CalendarDays, 
-  Bot, 
+import {
+  LayoutDashboard,
+  ArrowLeftRight,
+  CreditCard,
+  CalendarDays,
+  Bot,
   Settings,
   MenuIcon,
   XIcon,
   TrendingUpIcon,
-  LogOutIcon
+  LogOutIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
@@ -35,6 +35,16 @@ export default function Sidebar() {
     navigate("/login");
   };
 
+  const closeMobile = () => setIsMobileOpen(false);
+
+  const getUserPhoto = () => {
+    if (!user?.photoUrl) return null;
+    if (user.photoUrl.startsWith("http")) return user.photoUrl;
+    return `http://localhost:3001${user.photoUrl}`;
+  };
+
+  const photoUrl = getUserPhoto();
+
   return (
     <>
       {/* Mobile: botão hamburguer */}
@@ -50,7 +60,7 @@ export default function Sidebar() {
       {isMobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-          onClick={() => setIsMobileOpen(false)}
+          onClick={closeMobile}
         />
       )}
 
@@ -72,10 +82,7 @@ export default function Sidebar() {
               <p className="text-[10px] text-muted-foreground">Assistente Financeiro</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsMobileOpen(false)}
-            className="rounded p-1 hover:bg-muted md:hidden"
-          >
+          <button onClick={closeMobile} className="rounded p-1 hover:bg-muted md:hidden">
             <XIcon className="h-5 w-5" />
           </button>
         </div>
@@ -84,14 +91,15 @@ export default function Sidebar() {
         <nav className="flex-1 overflow-y-auto p-3">
           <div className="flex flex-col gap-1">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href || 
+              const isActive =
+                location.pathname === item.href ||
                 (item.href !== "/" && location.pathname.startsWith(item.href));
-              
+
               return (
                 <NavLink
                   key={item.href}
                   to={item.href}
-                  onClick={() => setIsMobileOpen(false)}
+                  onClick={closeMobile}
                   className={cn(
                     "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
                     isActive
@@ -99,10 +107,12 @@ export default function Sidebar() {
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  <item.icon className={cn(
-                    "h-4 w-4 transition-transform duration-150",
-                    isActive ? "" : "group-hover:scale-110"
-                  )} />
+                  <item.icon
+                    className={cn(
+                      "h-4 w-4 transition-transform duration-150",
+                      isActive ? "" : "group-hover:scale-110"
+                    )}
+                  />
                   <span>{item.name}</span>
                   {isActive && (
                     <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary-foreground" />
@@ -116,17 +126,17 @@ export default function Sidebar() {
         {/* Footer com usuário e logout */}
         <div className="border-t p-4">
           <div className="flex items-center gap-3 rounded-lg bg-muted p-3 mb-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-success-foreground text-xs font-bold overflow-hidden">
-  {user?.photoUrl ? (
-    <img
-      src={user.photoUrl?.startsWith("http") ? user.photoUrl : `http://localhost:3001${user.photoUrl}`}
-      alt={user.name}
-      className="h-full w-full object-cover"
-    />
-  ) : (
-    user?.name?.charAt(0) || "U"
-  )}
-</div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-success-foreground text-xs font-bold overflow-hidden shrink-0">
+              {photoUrl ? (
+                <img
+                  src={photoUrl}
+                  alt={user?.name || "Usuário"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                user?.name?.charAt(0)?.toUpperCase() || "U"
+              )}
+            </div>
             <div className="flex-1 overflow-hidden">
               <p className="text-sm font-medium truncate">{user?.name || "Usuário"}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>

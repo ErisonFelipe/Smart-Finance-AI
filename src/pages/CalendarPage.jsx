@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   format,
   startOfMonth,
@@ -30,23 +30,24 @@ export default function CalendarPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadEvents();
-  }, [currentMonth]);
-
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     try {
       setLoading(true);
       const month = currentMonth.getMonth() + 1;
       const year = currentMonth.getFullYear();
       const data = await transactionService.calendar(month, year);
-      setEvents(data);
+      setEvents(data || []);
     } catch (error) {
       console.error("Erro ao carregar eventos:", error);
+      setEvents([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth]);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
 
   // Gerar dias do calendário
   const monthStart = startOfMonth(currentMonth);
@@ -67,18 +68,20 @@ export default function CalendarPage() {
     days = [];
   }
 
-  // Eventos do dia selecionado
   const selectedEvents = events.filter((event) =>
     isSameDay(parseISO(event.data), selectedDate)
   );
 
-  // Eventos de um dia específico (para dots)
   const getEventsForDay = (date) => {
     return events.filter((event) => isSameDay(parseISO(event.data), date));
   };
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+    setSelectedDate(new Date());
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,9 +99,17 @@ export default function CalendarPage() {
               <button onClick={prevMonth} className="rounded-lg p-2 hover:bg-muted transition-colors">
                 <ChevronLeftIcon className="h-5 w-5" />
               </button>
-              <h3 className="text-lg font-semibold capitalize">
-                {format(currentMonth, "MMMM 'de' yyyy", { locale: ptBR })}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold capitalize">
+                  {format(currentMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+                </h3>
+                <button
+                  onClick={goToToday}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Hoje
+                </button>
+              </div>
               <button onClick={nextMonth} className="rounded-lg p-2 hover:bg-muted transition-colors">
                 <ChevronRightIcon className="h-5 w-5" />
               </button>
@@ -106,7 +117,10 @@ export default function CalendarPage() {
 
             {loading ? (
               <div className="flex items-center justify-center h-64">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  <p className="text-sm text-muted-foreground">Carregando eventos...</p>
+                </div>
               </div>
             ) : (
               <>
@@ -175,70 +189,71 @@ export default function CalendarPage() {
 
         {/* Eventos do dia selecionado */}
         <div className="lg:col-span-1">
-          <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="rounded-xl border bg-card p-4 shadow-sm sticky top-20">
             <h3 className="mb-4 text-lg font-semibold">
               {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
             </h3>
 
             {selectedEvents.length === 0 ? (
               <div className="text-center py-8">
+                <div className="text-4xl mb-2">📅</div>
                 <p className="text-sm text-muted-foreground">Nenhum evento neste dia</p>
               </div>
             ) : (
-              <ul className="flex flex-col gap-2">
-                {selectedEvents.map((event) => {
-                  const config = tipoConfig[event.tipo] || tipoConfig.despesa;
-                  const Icon = config.icone;
+              <>
+                <ul className="flex flex-col gap-2">
+                  {selectedEvents.map((event) => {
+                    const config = tipoConfig[event.tipo] || tipoConfig.despesa;
+                    const Icon = config.icone;
 
-                  return (
-                    <li
-                      key={event.id}
-                      className={`flex items-center justify-between rounded-lg border p-3 ${
-                        event.pago ? "opacity-60" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${config.bg}`}>
-                          <Icon className={`h-4 w-4 ${config.cor}`} />
+                    return (
+                      <li
+                        key={event.id}
+                        className={`flex items-center justify-between rounded-lg border p-3 ${
+                          event.pago ? "opacity-60" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${config.bg}`}>
+                            <Icon className={`h-4 w-4 ${config.cor}`} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{event.descricao}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {event.tipo} {event.pago ? "• Pago" : "• Pendente"}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">{event.descricao}</p>
-                          <p className="text-xs text-muted-foreground capitalize">
-                            {event.tipo} {event.pago ? "• Pago" : "• Pendente"}
-                          </p>
-                        </div>
-                      </div>
-                      <p className={`text-sm font-semibold ${config.cor}`}>
-                        {event.valor.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                        <p className={`text-sm font-semibold shrink-0 ml-2 ${config.cor}`}>
+                          {(event.valor || 0).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
 
-            {/* Resumo do dia */}
-            {selectedEvents.length > 0 && (
-              <div className="mt-4 border-t pt-4">
-                <p className="text-sm font-medium mb-2">Resumo do dia:</p>
-                <p className="text-sm text-success">
-                  +{" "}
-                  {selectedEvents
-                    .filter((e) => e.tipo === "renda")
-                    .reduce((acc, e) => acc + e.valor, 0)
-                    .toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
-                <p className="text-sm text-destructive">
-                  -{" "}
-                  {selectedEvents
-                    .filter((e) => e.tipo === "despesa" || e.tipo === "boleto")
-                    .reduce((acc, e) => acc + e.valor, 0)
-                    .toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
-              </div>
+                {/* Resumo do dia */}
+                <div className="mt-4 border-t pt-4 space-y-1">
+                  <p className="text-sm font-medium">Resumo do dia:</p>
+                  <p className="text-sm text-success">
+                    +{" "}
+                    {selectedEvents
+                      .filter((e) => e.tipo === "renda")
+                      .reduce((acc, e) => acc + (e.valor || 0), 0)
+                      .toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                  <p className="text-sm text-destructive">
+                    -{" "}
+                    {selectedEvents
+                      .filter((e) => e.tipo === "despesa" || e.tipo === "boleto")
+                      .reduce((acc, e) => acc + (e.valor || 0), 0)
+                      .toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </div>

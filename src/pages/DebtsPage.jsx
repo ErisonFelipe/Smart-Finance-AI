@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, RefreshCwIcon } from "lucide-react";
 import DebtList from "@/components/debts/DebtList";
 import BoletoForm from "@/components/debts/BoletoForm";
 import DebtModal from "@/components/debts/DebtModal";
 import EditDebtModal from "@/components/debts/EditDebtModal";
 import debtService from "@/api/debtService";
 import boletoService from "@/api/boletoService";
+
+const tabs = [
+  { id: "dividas", label: "Dívidas Ativas" },
+  { id: "boletos", label: "Boletos" },
+  { id: "historico", label: "Histórico" },
+];
 
 export default function DebtsPage() {
   const [activeTab, setActiveTab] = useState("dividas");
@@ -23,8 +29,8 @@ export default function DebtsPage() {
         debtService.list(),
         boletoService.list(),
       ]);
-      setDebts(debtsData);
-      setBoletos(boletosData);
+      setDebts(debtsData || []);
+      setBoletos(boletosData || []);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
     } finally {
@@ -37,79 +43,49 @@ export default function DebtsPage() {
   }, [loadData]);
 
   const handleAddDebt = async (newDebt) => {
-    try {
-      await debtService.create(newDebt);
-      setIsModalOpen(false);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao adicionar dívida:", error);
-      throw error;
-    }
+    await debtService.create(newDebt);
+    setIsModalOpen(false);
+    loadData();
   };
 
   const handleAddBoleto = async (newBoleto) => {
-    try {
-      await boletoService.create(newBoleto);
-      setIsModalOpen(false);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao adicionar boleto:", error);
-      throw error;
-    }
+    await boletoService.create(newBoleto);
+    setIsModalOpen(false);
+    loadData();
   };
 
   const handleDeleteDebt = async (id) => {
     if (!confirm("Tem certeza que deseja excluir esta dívida?")) return;
-    try {
-      await debtService.delete(id);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao excluir dívida:", error);
-    }
+    await debtService.delete(id);
+    loadData();
   };
 
   const handleDeleteBoleto = async (id) => {
     if (!confirm("Tem certeza que deseja excluir este boleto?")) return;
-    try {
-      await boletoService.delete(id);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao excluir boleto:", error);
-    }
+    await boletoService.delete(id);
+    loadData();
   };
 
   const handlePayInstallment = async (installmentId, paid) => {
-    try {
-      await debtService.payInstallment(installmentId, paid);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao pagar parcela:", error);
-    }
+    await debtService.payInstallment(installmentId, paid);
+    loadData();
   };
 
   const handleToggleBoleto = async (id, paid) => {
-    try {
-      await boletoService.togglePaid(id, paid);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao atualizar boleto:", error);
-    }
+    await boletoService.togglePaid(id, paid);
+    loadData();
   };
 
   const handleEdit = (item) => setEditingItem(item);
 
   const handleSaveEdit = async (id, data) => {
-    try {
-      if (editingItem?.installmentList !== undefined || editingItem?.status !== undefined) {
-        await debtService.update(id, data);
-      } else {
-        await boletoService.update(id, data);
-      }
-      setEditingItem(null);
-      loadData();
-    } catch (error) {
-      console.error("Erro ao editar:", error);
+    if (editingItem?.installmentList !== undefined || editingItem?.status !== undefined) {
+      await debtService.update(id, data);
+    } else {
+      await boletoService.update(id, data);
     }
+    setEditingItem(null);
+    loadData();
   };
 
   const openModal = (type) => {
@@ -117,12 +93,17 @@ export default function DebtsPage() {
     setIsModalOpen(true);
   };
 
+  // Contagem para as abas
+  const activeDebtsCount = debts.filter((d) => d.status !== "finished").length;
+  const pendingBoletosCount = boletos.filter((b) => !b.paid).length;
+  const finishedDebtsCount = debts.filter((d) => d.status === "finished").length;
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Carregando...</p>
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Carregando dívidas e boletos...</p>
         </div>
       </div>
     );
@@ -136,6 +117,13 @@ export default function DebtsPage() {
           <p className="text-muted-foreground">Controle suas dívidas e boletos pendentes</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={loadData}
+            className="rounded-lg p-2 hover:bg-muted transition-colors"
+            title="Atualizar"
+          >
+            <RefreshCwIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
           <button
             onClick={() => openModal("boleto")}
             className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
@@ -152,17 +140,28 @@ export default function DebtsPage() {
       </div>
 
       <div className="flex border-b">
-        {["dividas", "boletos", "historico"].map((tab) => (
+        {[
+          { id: "dividas", label: "Dívidas Ativas", count: activeDebtsCount },
+          { id: "boletos", label: "Boletos", count: pendingBoletosCount },
+          { id: "historico", label: "Histórico", count: finishedDebtsCount },
+        ].map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2 ${
+              activeTab === tab.id
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {tab === "dividas" ? "Dívidas Ativas" : tab === "boletos" ? "Boletos" : "Histórico"}
+            {tab.label}
+            {tab.count > 0 && (
+              <span className={`text-xs rounded-full px-1.5 py-0.5 ${
+                activeTab === tab.id ? "bg-primary/20" : "bg-muted"
+              }`}>
+                {tab.count}
+              </span>
+            )}
           </button>
         ))}
       </div>

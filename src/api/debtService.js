@@ -6,6 +6,11 @@ const debtService = {
     return response.data;
   },
 
+  getById: async (id) => {
+    const response = await api.get(`/debts/${id}`);
+    return response.data;
+  },
+
   create: async (data) => {
     const response = await api.post("/debts", data);
     return response.data;
@@ -21,8 +26,25 @@ const debtService = {
     return response.data;
   },
 
-  payInstallment: async (installmentId, paid = true) => {
-    const response = await api.put(`/debts/installment/${installmentId}`, { paid });
+  payInstallment: async (installmentId, data = {}) => {
+    const response = await api.put(`/debts/installment/${installmentId}`, {
+      paid: true,
+      paidAt: new Date().toISOString(),
+      ...data,
+    });
+    return response.data;
+  },
+
+  undoInstallment: async (installmentId) => {
+    const response = await api.put(`/debts/installment/${installmentId}`, {
+      paid: false,
+      paidAt: null,
+    });
+    return response.data;
+  },
+
+  getInstallments: async (debtId) => {
+    const response = await api.get(`/debts/${debtId}/installments`);
     return response.data;
   },
 };
