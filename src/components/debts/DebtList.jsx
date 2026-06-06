@@ -2,7 +2,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertCircleIcon, CheckCircleIcon, ClockIcon, TrashIcon } from "lucide-react";
 
-export default function DebtList({ debts, emptyMessage, isHistory = false, onDelete }) {
+export default function DebtList({ debts, emptyMessage, isHistory = false, onDelete, onPayInstallment }) {
   if (!debts || debts.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
@@ -78,10 +78,33 @@ export default function DebtList({ debts, emptyMessage, isHistory = false, onDel
               </div>
             </div>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm mb-3">
               <span>Pago: {(debt.paidAmount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
               <span>Parcela: {(debt.totalAmount / debt.installments).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
             </div>
+
+            {/* Parcelas clicáveis */}
+            {!isHistory && debt.installmentList && debt.installmentList.length > 0 && (
+              <div className="pt-3 border-t">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Parcelas:</p>
+                <div className="flex flex-wrap gap-2">
+                  {debt.installmentList.map((inst) => (
+                    <button
+                      key={inst.id}
+                      onClick={() => onPayInstallment && onPayInstallment(inst.id, !inst.paid)}
+                      className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                        inst.paid
+                          ? "bg-success/10 text-success hover:bg-success/20"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                      title={`Parcela ${inst.number}ª - ${inst.paid ? "Paga" : "Pendente"} - Clique para alternar`}
+                    >
+                      {inst.number}ª
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

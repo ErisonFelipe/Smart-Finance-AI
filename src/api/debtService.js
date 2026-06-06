@@ -15,6 +15,11 @@ const debtService = {
     const response = await api.delete(`/debts/${id}`);
     return response.data;
   },
+
+  payInstallment: async (installmentId, paid = true) => {
+  const response = await api.put(`/debts/installment/${installmentId}`, { paid });
+  return response.data;
+},
 };
 
 export default debtService;

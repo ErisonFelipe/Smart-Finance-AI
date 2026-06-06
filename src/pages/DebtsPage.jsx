@@ -76,6 +76,15 @@ export default function DebtsPage() {
     }
   };
 
+  const handlePayInstallment = async (installmentId, paid) => {
+    try {
+      await debtService.payInstallment(installmentId, paid);
+      loadData();
+    } catch (error) {
+      console.error("Erro ao pagar parcela:", error);
+    }
+  };
+
   const openModal = (type) => {
     setModalType(type);
     setIsModalOpen(true);
@@ -84,7 +93,10 @@ export default function DebtsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }
@@ -97,22 +109,31 @@ export default function DebtsPage() {
           <p className="text-muted-foreground">Controle suas dívidas e boletos pendentes</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => openModal("boleto")} className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted">
+          <button
+            onClick={() => openModal("boleto")}
+            className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+          >
             <PlusIcon className="h-4 w-4" /> Novo Boleto
           </button>
-          <button onClick={() => openModal("divida")} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover">
+          <button
+            onClick={() => openModal("divida")}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover transition-colors"
+          >
             <PlusIcon className="h-4 w-4" /> Nova Dívida
           </button>
         </div>
       </div>
 
+      {/* Abas */}
       <div className="flex border-b">
         {["dividas", "boletos", "historico"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
+              activeTab === tab
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {tab === "dividas" ? "Dívidas Ativas" : tab === "boletos" ? "Boletos" : "Histórico"}
@@ -120,16 +141,29 @@ export default function DebtsPage() {
         ))}
       </div>
 
+      {/* Conteúdo */}
       {activeTab === "dividas" && (
-        <DebtList debts={debts.filter((d) => d.status !== "finished")} emptyMessage="Nenhuma dívida ativa" onDelete={handleDeleteDebt} />
+        <DebtList
+          debts={debts.filter((d) => d.status !== "finished")}
+          emptyMessage="Nenhuma dívida ativa"
+          onDelete={handleDeleteDebt}
+          onPayInstallment={handlePayInstallment}
+        />
       )}
+
       {activeTab === "boletos" && (
         <BoletoForm boletos={boletos} onDelete={handleDeleteBoleto} />
       )}
+
       {activeTab === "historico" && (
-        <DebtList debts={debts.filter((d) => d.status === "finished")} emptyMessage="Nenhuma dívida quitada" isHistory />
+        <DebtList
+          debts={debts.filter((d) => d.status === "finished")}
+          emptyMessage="Nenhuma dívida quitada"
+          isHistory
+        />
       )}
 
+      {/* Modal */}
       {isModalOpen && (
         <DebtModal
           type={modalType}
