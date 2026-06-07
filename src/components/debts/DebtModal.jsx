@@ -1,16 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { XIcon, SaveIcon, LoaderIcon } from "lucide-react";
+import categoryService from "@/api/categoryService";
 
 export default function DebtModal({ type, onClose, onSave }) {
   const isBoleto = type === "boleto";
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
   const [form, setForm] = useState(
     isBoleto
-      ? { descricao: "", codigoBarras: "", valor: "", vencimento: "", status: "pendente" }
-      : { nome: "", valorTotal: "", parcelasTotais: "", dataInicio: new Date().toISOString().slice(0, 10), status: "ativa" }
+      ? { descricao: "", codigoBarras: "", valor: "", vencimento: "" }
+      : { nome: "", valorTotal: "", parcelasTotais: "", dataInicio: new Date().toISOString().slice(0, 10), categoriaId: "" }
   );
+
+  useEffect(() => {
+    if (!isBoleto) loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const data = await categoryService.list();
+      setCategories(data.filter((c) => c.type === "expense"));
+      // Selecionar primeira categoria por padrão
+      const expenseCats = data.filter((c) => c.type === "expense");
+      if (expenseCats.length > 0) {
+        setForm((prev) => ({ ...prev, categoriaId: expenseCats[0].id }));
+      }
+    } catch (error) {
+      console.error("Erro ao carregar categorias:", error);
+    }
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -24,6 +44,7 @@ export default function DebtModal({ type, onClose, onSave }) {
       if (!form.parcelasTotais || Number(form.parcelasTotais) < 1) newErrors.parcelasTotais = "Mínimo 1 parcela";
       if (Number(form.parcelasTotais) > 120) newErrors.parcelasTotais = "Máximo 120 parcelas";
       if (!form.dataInicio) newErrors.dataInicio = "Data de início é obrigatória";
+      if (!form.categoriaId) newErrors.categoriaId = "Selecione uma categoria";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -48,6 +69,7 @@ export default function DebtModal({ type, onClose, onSave }) {
           totalAmount: Number(form.valorTotal),
           startDate: new Date(form.dataInicio).toISOString(),
           installments: Number(form.parcelasTotais),
+          categoryId: form.categoriaId,
         });
       }
       onClose();
@@ -61,7 +83,7 @@ export default function DebtModal({ type, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-xl animate-scale-in">
+      <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-xl animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">
             {isBoleto ? "Novo Boleto" : "Nova Dívida"}
@@ -174,6 +196,21 @@ export default function DebtModal({ type, onClose, onSave }) {
                   required
                 />
                 {errors.dataInicio && <p className="text-xs text-destructive mt-1">{errors.dataInicio}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Categoria *</label>
+                <select
+                  value={form.categoriaId}
+                  onChange={(e) => { setForm({ ...form, categoriaId: e.target.value }); setErrors({ ...errors, categoriaId: null }); }}
+                  className={`w-full rounded-lg border bg-background px-3 py-2 text-sm ${errors.categoriaId ? "border-destructive" : ""}`}
+                  required
+                >
+                  <option value="">Selecione uma categoria...</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+                {errors.categoriaId && <p className="text-xs text-destructive mt-1">{errors.categoriaId}</p>}
               </div>
             </>
           )}
