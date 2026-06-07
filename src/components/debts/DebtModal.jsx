@@ -67,7 +67,7 @@ export default function DebtModal({ type, onClose, onSave }) {
         await onSave({
           name: form.nome.trim(),
           totalAmount: Number(form.valorTotal),
-          startDate: new Date(form.dataInicio).toISOString(),
+          dueDate: new Date(form.vencimento + "T12:00:00").toISOString(),
           installments: Number(form.parcelasTotais),
           categoryId: form.categoriaId,
         });

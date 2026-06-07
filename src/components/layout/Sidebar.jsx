@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
+import { TrendingUpIcon } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Calendário", href: "/calendario", icon: CalendarDays },
   { name: "Assistente IA", href: "/assistente", icon: Bot },
   { name: "Configurações", href: "/configuracoes", icon: Settings },
+  { name: "Projeção", href: "/projecao", icon: TrendingUpIcon },
 ];
 
 export default function Sidebar() {

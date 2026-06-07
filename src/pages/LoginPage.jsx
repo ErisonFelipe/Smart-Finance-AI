@@ -61,13 +61,17 @@ export default function LoginPage() {
     }
   };
 
-  const handleEmailChange = (e) => {
-    const email = e.target.value;
-    setForm({ ...form, email });
-    setEmailAvailable(null);
+ const handleEmailChange = (e) => {
+  const email = e.target.value;
+  setForm({ ...form, email });
+  setEmailAvailable(null);
+
+  // Só verificar email no modo registro
+  if (isRegister) {
     if (window.emailTimeout) clearTimeout(window.emailTimeout);
     window.emailTimeout = setTimeout(() => checkEmail(email), 500);
-  };
+  }
+};
 
   const resetForm = () => {
     setIsRegister(!isRegister);
