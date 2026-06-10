@@ -10,6 +10,7 @@ import AssistantPage from "@/pages/AssistantPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ProjectionPage from "@/pages/ProjectionPage";
 import MaintenancePage from "@/pages/MaintenancePage";
+import GoalsPage from "@/pages/GoalsPage";
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/assistente" element={<AssistantPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />
           <Route path="/projecao" element={<ProjectionPage />} />
+          <Route path="/metas" element={<GoalsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
