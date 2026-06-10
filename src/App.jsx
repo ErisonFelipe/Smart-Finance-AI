@@ -9,6 +9,7 @@ import CalendarPage from "@/pages/CalendarPage";
 import AssistantPage from "@/pages/AssistantPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ProjectionPage from "@/pages/ProjectionPage";
+import MaintenancePage from "@/pages/MaintenancePage";
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -17,6 +18,17 @@ function ProtectedRoute({ children }) {
 }
 
 export default function App() {
+  const MAINTENANCE_MODE = false;
+
+  if (MAINTENANCE_MODE) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="*" element={<MaintenancePage />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
   return (
     <BrowserRouter>
       <Routes>
