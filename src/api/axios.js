@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const baseURL = "https://smart-finance-ai-backend-production.up.railway.app/api";
+const baseURL = "https://smart-finance-ai-backend-production.up.railway.app/";
 
 const api = axios.create({ baseURL });
 
